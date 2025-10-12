@@ -294,6 +294,9 @@ public partial class MainViewModel : ObservableObject
                 // optional: for weak hashes like CRC32, do byte-by-byte comparison
                 bool needFullCompare = SelectedAlgorithm == MainViewModel.CompareAlgorithm.Crc32PlusFullCompare;
 
+                // list to hold duplicates in this group
+                var duplicates = new List<FileEntryViewModel>();
+
                 // compare each file with every other file in the group
                 for (int i = 0; i < group.Count(); i++)
                 {
@@ -325,18 +328,39 @@ public partial class MainViewModel : ObservableObject
                         // mark as duplicates if they match
                         if (isDuplicate)
                         {
-                            fileA.State = FileEntryViewModel.FileState.keep;
-                            fileB.State = FileEntryViewModel.FileState.keep;
-
-                            fileA.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
-                            fileB.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
-                            FileEntryViewModel.duplicateGroupIndex++;
+                            if (!duplicates.Contains(fileA))
+                            {
+                                duplicates.Add(fileA);
+                            }
                         }
                     }
 
-                    // mark file as unique if no duplicate found
-                    if (fileA.State != FileEntryViewModel.FileState.keep)
+                    // add the current file to duplicates if any were found
+                    if (duplicates.Count > 0)
                     {
+                        // pick file with shortest filename to keep
+                        var fileToKeep = duplicates.OrderBy(f => f.Filename.Length).First();
+                        fileToKeep.State = FileEntryViewModel.FileState.keep;
+                        fileToKeep.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
+
+                        // mark the rest for deletion
+                        foreach (var file in duplicates.Except(new[] { fileToKeep }))
+                        {
+                            // mark for deletion
+                            file.State = FileEntryViewModel.FileState.delete;
+
+                            file.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
+
+                            // update progress
+                            processed++;
+                            ProgressValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+                        }
+
+                        FileEntryViewModel.duplicateGroupIndex++;
+                    }
+                    else
+                    {
+                        // mark as unique if no duplicates
                         fileA.State = FileEntryViewModel.FileState.unique;
                         UniqueData += fileA.Size;
                     }

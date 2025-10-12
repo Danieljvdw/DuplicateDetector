@@ -29,13 +29,29 @@
         </StackPanel>
 
         <!-- Files List -->
-        <DataGrid Grid.Row="1" ItemsSource="{Binding Files}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False">
+        <DataGrid Grid.Row="1" ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" PreviewMouseLeftButtonDown="FilesDataGrid_PreviewMouseLeftButtonDown">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" Width="*"/>
-                <DataGridTextColumn Header="Size (Bytes)" Binding="{Binding Size}" Width="120"/>
-                <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" Width="200"/>
-                <DataGridComboBoxColumn Header="State" SelectedItemBinding="{Binding State, Mode=TwoWay}" Width="120"
-                        ItemsSource="{Binding DataContext.FileStates, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Size (Bytes)" Binding="{Binding Size}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" IsReadOnly="True"/>
+                <DataGridTemplateColumn Header="State" Width="120">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding FileStates}"
+                                      SelectedItem="{Binding State, Mode=TwoWay}"
+                                      IsReadOnly="True"
+                                      IsHitTestVisible="False"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding FileStates}"
+                                      SelectedItem="{Binding State, Mode=TwoWay}"
+                                      IsDropDownOpen="True"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 

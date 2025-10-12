@@ -3,8 +3,10 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.VisualBasic.FileIO;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Security.Cryptography;
+using System.Windows.Data;
 
 namespace DuplicateDetector.ViewModels;
 
@@ -46,7 +48,7 @@ public partial class FileEntryViewModel : ObservableObject
         }
     }
 
-    public Array FileStates => Enum.GetValues(typeof(FileEntryViewModel.FileState));
+    public static Array FileStates => Enum.GetValues(typeof(FileEntryViewModel.FileState));
 
     [ObservableProperty]
     string? hashString = null;
@@ -135,13 +137,16 @@ public partial class MainViewModel : ObservableObject
         SHA512
     }
 
-    public Array CompareAlgorithms => Enum.GetValues(typeof(CompareAlgorithm));
+    public static Array CompareAlgorithms => Enum.GetValues(typeof(CompareAlgorithm));
 
     [ObservableProperty]
     ObservableCollection<string> folders = new();
 
     [ObservableProperty]
     ObservableCollection<FileEntryViewModel> files = new();
+
+    // CollectionView for sorting, grouping, and filtering
+    public ICollectionView FilesView { get; }
 
 #if false // want to enable storing hashes in file for low RAM usage
     [ObservableProperty]
@@ -194,6 +199,18 @@ public partial class MainViewModel : ObservableObject
             // Trigger DeleteData update on any collection change
             OnPropertyChanged(nameof(DeleteData));
         };
+
+        // Create a CollectionViewSource from the ObservableCollection
+        var cvs = new CollectionViewSource { Source = Files };
+        FilesView = cvs.View;
+
+        // Sorting: first by DuplicateGroup ascending (groups), then by Size descending, then by Filename
+        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
+        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
+        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
+
+        // Refresh automatically when collection changes
+        Files.CollectionChanged += (s, e) => FilesView.Refresh();
     }
 
 
@@ -374,6 +391,7 @@ public partial class MainViewModel : ObservableObject
                             {
                                 duplicates.Add(fileA);
                             }
+                            duplicates.Add(fileB);
                         }
                     }
 

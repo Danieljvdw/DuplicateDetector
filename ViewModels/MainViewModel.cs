@@ -46,6 +46,7 @@ public partial class FileEntryViewModel : ObservableObject
         }
     }
 
+    public Array FileStates => Enum.GetValues(typeof(FileEntryViewModel.FileState));
 
     [ObservableProperty]
     string? hashString = null;
@@ -134,6 +135,8 @@ public partial class MainViewModel : ObservableObject
         SHA512
     }
 
+    public Array CompareAlgorithms => Enum.GetValues(typeof(CompareAlgorithm));
+
     [ObservableProperty]
     ObservableCollection<string> folders = new();
 
@@ -150,6 +153,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     double progressValue;
+
+    private double lastProgressValue = 0;
+    private readonly object progressLock = new();
 
     [ObservableProperty]
     bool isScanning;
@@ -192,7 +198,7 @@ public partial class MainViewModel : ObservableObject
 
 
     [RelayCommand]
-    private void AddFolder()
+    void AddFolder()
     {
         var dialog = new CommonOpenFileDialog()
         {
@@ -206,7 +212,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task ScanAsync()
+    async Task ScanAsync()
     {
         // clear previous results
         Files.Clear();
@@ -296,7 +302,7 @@ public partial class MainViewModel : ObservableObject
                 }
 
                 processed++;
-                ProgressValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+                UpdateProgressSafely(processed, totalFiles, numberOfSteps);
             }
 
             // flatten the groups into a single list of files to hash
@@ -312,7 +318,7 @@ public partial class MainViewModel : ObservableObject
                 token.ThrowIfCancellationRequested();
                 file.Hash(SelectedAlgorithm); // your existing sync hash method
                 Interlocked.Increment(ref processed);
-                ProgressValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+                UpdateProgressSafely(processed, totalFiles, numberOfSteps);
 
                 return ValueTask.CompletedTask;
             });
@@ -389,7 +395,7 @@ public partial class MainViewModel : ObservableObject
 
                             // update progress
                             processed++;
-                            ProgressValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+                            UpdateProgressSafely(processed, totalFiles, numberOfSteps);
                         }
 
                         FileEntryViewModel.duplicateGroupIndex++;
@@ -403,7 +409,7 @@ public partial class MainViewModel : ObservableObject
 
                     // update progress
                     processed++;
-                    ProgressValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+                    UpdateProgressSafely(processed, totalFiles, numberOfSteps);
                 }
             }
         }
@@ -447,7 +453,7 @@ public partial class MainViewModel : ObservableObject
         {
             file.DeleteToRecycleBin();
             Interlocked.Increment(ref processed);
-            ProgressValue = (double)processed / total * 100;
+            UpdateProgressSafely(processed, filesToDelete.Count, 1);
 
             return ValueTask.CompletedTask;
         });
@@ -469,5 +475,24 @@ public partial class MainViewModel : ObservableObject
         } while (b1 != -1);
 
         return true;
+    }
+
+    private void UpdateProgressSafely(int processed, int totalFiles, int numberOfSteps)
+    {
+        // compute new value
+        double newValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+
+        // only update if change is noticeable (e.g., >= 0.1%)
+        if (Math.Abs(newValue - lastProgressValue) >= 0.1)
+        {
+            lock (progressLock)
+            {
+                if (Math.Abs(newValue - lastProgressValue) >= 0.1)
+                {
+                    lastProgressValue = newValue;
+                    App.Current.Dispatcher.InvokeAsync(() => ProgressValue = newValue);
+                }
+            }
+        }
     }
 }

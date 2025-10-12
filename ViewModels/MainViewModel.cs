@@ -147,6 +147,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     int maxThreads = Environment.ProcessorCount;
 
+    [ObservableProperty]
+    long totalData;         // total bytes scanned
+
+    [ObservableProperty]
+    long uniqueData;        // total bytes unique
+
     private CancellationTokenSource? cts = null;
 
     [RelayCommand]
@@ -176,6 +182,13 @@ public partial class MainViewModel : ObservableObject
         {
             // mark as scanning
             IsScanning = true;
+
+            // lock for updating stats
+            object statUpdateLock = new object();
+
+            // reset stats
+            TotalData = 0;
+            UniqueData = 0;
 
             // reset progress
             ProgressValue = 0;
@@ -209,6 +222,13 @@ public partial class MainViewModel : ObservableObject
             {
                 cts.Token.ThrowIfCancellationRequested();
                 fileEntries[index] = new FileEntryViewModel(allFiles[index]);
+
+                // accumulate total data
+                lock (statUpdateLock)
+                {
+                    TotalData += fileEntries[index].Size;
+                }
+
                 return ValueTask.CompletedTask;
             });
 
@@ -234,6 +254,11 @@ public partial class MainViewModel : ObservableObject
             foreach (var file in uniqueSizeFiles)
             {
                 file.State = FileEntryViewModel.FileState.unique;
+                lock (statUpdateLock)
+                {
+                    UniqueData += file.Size;
+                }
+
                 processed++;
                 ProgressValue = (double)processed / (totalFiles * numberOfSteps) * 100;
             }
@@ -313,6 +338,7 @@ public partial class MainViewModel : ObservableObject
                     if (fileA.State != FileEntryViewModel.FileState.keep)
                     {
                         fileA.State = FileEntryViewModel.FileState.unique;
+                        UniqueData += fileA.Size;
                     }
 
                     // update progress

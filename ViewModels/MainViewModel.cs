@@ -302,7 +302,6 @@ public partial class MainViewModel : ObservableObject
 
             // total files to process
             int numberOfSteps = 4;
-            int totalFiles = allFiles.Count;
             int processed = 0;
 
             // create file entries in parallel
@@ -328,12 +327,13 @@ public partial class MainViewModel : ObservableObject
             });
 
             // sequentially add to the ObservableCollection and update progress
+            processed = 0;
             foreach (var entry in fileEntries)
             {
                 cts.Token.ThrowIfCancellationRequested();
                 Files.Add(entry);
                 processed++;
-                ProgressValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+                UpdateProgressSafely(processed, fileEntries.Length, numberOfSteps, 1);
             }
 
             // create groups of files with same size
@@ -346,6 +346,7 @@ public partial class MainViewModel : ObservableObject
                                        .Where(g => g.Count() == 1)
                                        .SelectMany(g => g);
 
+            processed = 0;
             foreach (var file in uniqueSizeFiles)
             {
                 file.State = FileEntryViewModel.FileState.unique;
@@ -355,7 +356,7 @@ public partial class MainViewModel : ObservableObject
                 }
 
                 processed++;
-                UpdateProgressSafely(processed, totalFiles, numberOfSteps);
+                UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 2);
             }
 
             // flatten the groups into a single list of files to hash
@@ -371,7 +372,7 @@ public partial class MainViewModel : ObservableObject
                 token.ThrowIfCancellationRequested();
                 file.Hash(SelectedAlgorithm); // your existing sync hash method
                 Interlocked.Increment(ref processed);
-                UpdateProgressSafely(processed, totalFiles, numberOfSteps);
+                UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 3);
 
                 return ValueTask.CompletedTask;
             });
@@ -382,6 +383,9 @@ public partial class MainViewModel : ObservableObject
                 .GroupBy(f => f.HashString)
                 .Where(g => g.Count() > 1)  // only groups with potential duplicates
                 .ToList();
+
+            processed = 0;
+            int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
 
             // compare files within each hash group
             foreach (var group in hashGroups)
@@ -449,7 +453,7 @@ public partial class MainViewModel : ObservableObject
 
                             // update progress
                             processed++;
-                            UpdateProgressSafely(processed, totalFiles, numberOfSteps);
+                            UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
                         }
 
                         FileEntryViewModel.duplicateGroupIndex++;
@@ -463,7 +467,7 @@ public partial class MainViewModel : ObservableObject
 
                     // update progress
                     processed++;
-                    UpdateProgressSafely(processed, totalFiles, numberOfSteps);
+                    UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
                 }
             }
         }
@@ -509,7 +513,7 @@ public partial class MainViewModel : ObservableObject
         {
             file.DeleteToRecycleBin();
             Interlocked.Increment(ref processed);
-            UpdateProgressSafely(processed, filesToDelete.Count, 1);
+            UpdateProgressSafely(processed, filesToDelete.Count);
 
             return ValueTask.CompletedTask;
         });
@@ -535,10 +539,15 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Safely updates UI progress with throttling to avoid lag
-    private void UpdateProgressSafely(int processed, int totalFiles, int numberOfSteps)
+    private void UpdateProgressSafely(int processed, int files)
+    {
+        UpdateProgressSafely(processed, files, 1, 1);
+    }
+
+    private void UpdateProgressSafely(int processed, int files, int numberOfSteps, int step)
     {
         // compute new value
-        double newValue = (double)processed / (totalFiles * numberOfSteps) * 100;
+        double newValue = ((double)processed / files) * ((double)step / numberOfSteps) * 100;
 
         // only update if change is noticeable (e.g., >= 0.1%)
         if (Math.Abs(newValue - lastProgressValue) >= 0.1)

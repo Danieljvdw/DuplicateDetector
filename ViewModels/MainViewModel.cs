@@ -10,8 +10,10 @@ using System.Windows.Data;
 
 namespace DuplicateDetector.ViewModels;
 
+// ViewModel representing a single file entry in the duplicate detection process
 public partial class FileEntryViewModel : ObservableObject
 {
+    // Enum representing possible file processing states
     public enum FileState
     {
         idle,
@@ -25,22 +27,28 @@ public partial class FileEntryViewModel : ObservableObject
         error
     }
 
+    // Static counter to assign unique IDs to duplicate groups
     public static int duplicateGroupIndex = 0;
 
+    // Full file path
     [ObservableProperty]
     string filename;
 
+    // File size in bytes
     [ObservableProperty]
     long size;
 
+    // Event invoked whenever file state changes
     public Action? OnStateChanged;
 
+    // Backing field for the file's current state
     private FileState state;
     public FileState State
     {
         get => state;
         set
         {
+            // Notify property change and trigger callback
             if (SetProperty(ref state, value))
             {
                 OnStateChanged?.Invoke();
@@ -48,20 +56,25 @@ public partial class FileEntryViewModel : ObservableObject
         }
     }
 
+    // Returns all possible file states as an array (for UI binding)
     public static Array FileStates => Enum.GetValues(typeof(FileEntryViewModel.FileState));
 
+    // Hexadecimal representation of computed file hash
     [ObservableProperty]
     string? hashString = null;
 
+    // Group index for duplicate detection
     [ObservableProperty]
     int? duplicateGroup = null;
 
+    // Constructor initializes from FileInfo
     public FileEntryViewModel(FileInfo info)
     {
         Filename = info.FullName;
         Size = info.Length;
     }
 
+    // Calculates hash of the file using selected algorithm
     public void Hash(MainViewModel.CompareAlgorithm compareAlgorithm)
     {
         State = FileState.hashing;
@@ -72,6 +85,7 @@ public partial class FileEntryViewModel : ObservableObject
 
             byte[] hashBytes;
 
+            // Select hashing algorithm
             switch (compareAlgorithm)
             {
                 case MainViewModel.CompareAlgorithm.Crc32:
@@ -80,6 +94,7 @@ public partial class FileEntryViewModel : ObservableObject
                     byte[] buffer = new byte[8192];
                     int bytesRead;
 
+                    // Incrementally compute CRC32 checksum
                     while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
                     {
                         crc32.Append(buffer.AsSpan(0, bytesRead));
@@ -87,37 +102,44 @@ public partial class FileEntryViewModel : ObservableObject
 
                     hashBytes = crc32.GetCurrentHash();
                     break;
+
                 case MainViewModel.CompareAlgorithm.MD5:
                     using (var md5 = MD5.Create())
                     {
                         hashBytes = md5.ComputeHash(stream);
                     }
                     break;
+
                 case MainViewModel.CompareAlgorithm.SHA256:
                     using (var sha256 = SHA256.Create())
                     {
                         hashBytes = sha256.ComputeHash(stream);
                     }
                     break;
+
                 case MainViewModel.CompareAlgorithm.SHA512:
                     using (var sha512 = SHA512.Create())
                     {
                         hashBytes = sha512.ComputeHash(stream);
                     }
                     break;
+
                 default:
                     throw new Exception("Unknown algorithm");
             }
 
-            HashString = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant(); // store as hex
+            // Convert hash bytes to lowercase hex string
+            HashString = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
             State = FileState.hashed;
         }
         catch
         {
+            // Handle I/O or permission errors
             State = FileState.error;
         }
     }
 
+    // Moves the file to the recycle bin and updates state
     public void DeleteToRecycleBin()
     {
         State = FileState.deleting;
@@ -128,6 +150,7 @@ public partial class FileEntryViewModel : ObservableObject
 
 public partial class MainViewModel : ObservableObject
 {
+    // Supported hashing / comparison algorithms
     public enum CompareAlgorithm
     {
         Crc32,
@@ -137,11 +160,14 @@ public partial class MainViewModel : ObservableObject
         SHA512
     }
 
+    // Expose list of algorithms for UI binding
     public static Array CompareAlgorithms => Enum.GetValues(typeof(CompareAlgorithm));
 
+    // List of selected folder paths
     [ObservableProperty]
     ObservableCollection<string> folders = new();
 
+    // Collection of all scanned file entries
     [ObservableProperty]
     ObservableCollection<FileEntryViewModel> files = new();
 
@@ -153,41 +179,50 @@ public partial class MainViewModel : ObservableObject
     bool useHashFile;
 #endif
 
+    // Currently selected hashing algorithm
     [ObservableProperty]
     CompareAlgorithm selectedAlgorithm = CompareAlgorithm.Crc32;
 
+    // Progress bar value (0–100%)
     [ObservableProperty]
     double progressValue;
 
     private double lastProgressValue = 0;
     private readonly object progressLock = new();
 
+    // Whether scanning is currently active
     [ObservableProperty]
     bool isScanning;
 
+    // Optional filter to display only certain file states
     [ObservableProperty]
     FileEntryViewModel.FileState? fileStateFilter = null;
 
+    // Max degree of parallelism
     [ObservableProperty]
     int maxThreads = Environment.ProcessorCount;
 
+    // Total bytes scanned
     [ObservableProperty]
-    long totalData;         // total bytes scanned
+    long totalData;
 
+    // Bytes belonging to unique (non-duplicate) files
     [ObservableProperty]
-    long uniqueData;        // total bytes unique
+    long uniqueData;
 
+    // Bytes that would be freed by deleting duplicates
     public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete)
                                    .Sum(f => f.Size);
 
+    // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;
 
     public MainViewModel()
     {
-        // Listen for collection changes
+        // Attach handler to Files collection change events
         Files.CollectionChanged += (s, e) =>
         {
-            // Subscribe to OnStateChanged for new items
+            // Subscribe to OnStateChanged of each new file
             if (e.NewItems != null)
             {
                 foreach (FileEntryViewModel newFile in e.NewItems)
@@ -196,24 +231,24 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            // Trigger DeleteData update on any collection change
+            // Update DeleteData whenever collection changes
             OnPropertyChanged(nameof(DeleteData));
         };
 
-        // Create a CollectionViewSource from the ObservableCollection
+        // Configure sorting behavior for file view
         var cvs = new CollectionViewSource { Source = Files };
         FilesView = cvs.View;
 
-        // Sorting: first by DuplicateGroup ascending (groups), then by Size descending, then by Filename
+        // Default sort: by duplicate group, size (desc), and filename
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
 
-        // Refresh automatically when collection changes
+        // Auto-refresh view when collection changes
         Files.CollectionChanged += (s, e) => FilesView.Refresh();
     }
 
-
+    // Opens a folder picker and adds a selected folder to scan list
     [RelayCommand]
     void AddFolder()
     {
@@ -228,6 +263,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    // Main method to scan all folders and detect duplicates
     [RelayCommand]
     async Task ScanAsync()
     {
@@ -443,12 +479,14 @@ public partial class MainViewModel : ObservableObject
         cts = null;
     }
 
+    // Cancels current scan or delete task
     [RelayCommand]
     void Cancel()
     {
         cts?.Cancel();
     }
 
+    // Deletes all files marked for deletion (moves to recycle bin)
     [RelayCommand]
     async Task DeleteSelectedAsync()
     {
@@ -477,6 +515,7 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    // Byte-by-byte comparison for final verification
     private bool AreFilesIdentical(string file1, string file2)
     {
         using var fs1 = File.OpenRead(file1);
@@ -495,6 +534,7 @@ public partial class MainViewModel : ObservableObject
         return true;
     }
 
+    // Safely updates UI progress with throttling to avoid lag
     private void UpdateProgressSafely(int processed, int totalFiles, int numberOfSteps)
     {
         // compute new value

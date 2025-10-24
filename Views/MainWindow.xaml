@@ -61,6 +61,23 @@
 
         <!-- Files List -->
         <DataGrid Grid.Row="2" ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" PreviewMouseLeftButtonDown="FilesDataGrid_PreviewMouseLeftButtonDown">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <!-- Highlight files marked for deletion in light red -->
+                        <DataTrigger Binding="{Binding State}" Value="delete">
+                            <Setter Property="Background" Value="#FFFFC0C0"/>
+                            <!-- light red -->
+                        </DataTrigger>
+
+                        <!-- Highlight files marked to keep in light green -->
+                        <DataTrigger Binding="{Binding State}" Value="keep">
+                            <Setter Property="Background" Value="#FFC0FFC0"/>
+                            <!-- light green -->
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Size (Bytes)" Binding="{Binding Size}" IsReadOnly="True"/>

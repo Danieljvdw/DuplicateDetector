@@ -267,220 +267,220 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     async Task ScanAsync()
     {
-        // clear previous results
-        Files.Clear();
+            // clear previous results
+            Files.Clear();
 
-        // setup cancellation token
-        cts = new CancellationTokenSource();
+            // setup cancellation token
+            cts = new CancellationTokenSource();
 
-        try
-        {
-            // mark as scanning
-            IsScanning = true;
-
-            // lock for updating stats
-            object statUpdateLock = new object();
-
-            // reset stats
-            TotalData = 0;
-            UniqueData = 0;
-
-            // reset progress
-            ProgressValue = 0;
-
-            // reset duplicate group index
-            FileEntryViewModel.duplicateGroupIndex = 0;
-
-            // populate file list
-            var allFiles = new List<FileInfo>();
-            foreach (var folder in Folders)
+            try
             {
-                cts.Token.ThrowIfCancellationRequested();
-                var dirInfo = new DirectoryInfo(folder);
-                allFiles.AddRange(dirInfo.GetFiles("*", System.IO.SearchOption.AllDirectories));
-            }
+                // mark as scanning
+                IsScanning = true;
 
-            // total files to process
-            int numberOfSteps = 4;
-            int processed = 0;
+                // lock for updating stats
+                object statUpdateLock = new object();
 
-            // create file entries in parallel
-            var fileEntries = new FileEntryViewModel[allFiles.Count];
+                // reset stats
+                TotalData = 0;
+                UniqueData = 0;
 
-            // parallel creation using async style
-            await Parallel.ForEachAsync(Enumerable.Range(0, allFiles.Count), new ParallelOptions
-            {
-                MaxDegreeOfParallelism = MaxThreads,
-                CancellationToken = cts.Token
-            }, (index, token) =>
-            {
-                cts.Token.ThrowIfCancellationRequested();
-                fileEntries[index] = new FileEntryViewModel(allFiles[index]);
+                // reset progress
+                ProgressValue = 0;
 
-                // accumulate total data
-                lock (statUpdateLock)
+                // reset duplicate group index
+                FileEntryViewModel.duplicateGroupIndex = 0;
+
+                // populate file list
+                var allFiles = new List<FileInfo>();
+                foreach (var folder in Folders)
                 {
-                    TotalData += fileEntries[index].Size;
+                    cts.Token.ThrowIfCancellationRequested();
+                    var dirInfo = new DirectoryInfo(folder);
+                    allFiles.AddRange(dirInfo.GetFiles("*", System.IO.SearchOption.AllDirectories));
                 }
 
-                return ValueTask.CompletedTask;
-            });
+                // total files to process
+                int numberOfSteps = 4;
+                int processed = 0;
 
-            // sequentially add to the ObservableCollection and update progress
-            processed = 0;
-            foreach (var entry in fileEntries)
-            {
-                cts.Token.ThrowIfCancellationRequested();
-                Files.Add(entry);
-                processed++;
-                UpdateProgressSafely(processed, fileEntries.Length, numberOfSteps, 1);
-            }
+                // create file entries in parallel
+                var fileEntries = new FileEntryViewModel[allFiles.Count];
 
-            // create groups of files with same size
-            var sizeGroups = Files.GroupBy(f => f.Size)
-                                  .Where(g => g.Count() > 1)
-                                  .ToList();
-
-            // mark files with unique sizes as unique
-            var uniqueSizeFiles = Files.GroupBy(f => f.Size)
-                                       .Where(g => g.Count() == 1)
-                                       .SelectMany(g => g);
-
-            processed = 0;
-            foreach (var file in uniqueSizeFiles)
-            {
-                file.State = FileEntryViewModel.FileState.unique;
-                lock (statUpdateLock)
+                // parallel creation using async style
+                await Parallel.ForEachAsync(Enumerable.Range(0, allFiles.Count), new ParallelOptions
                 {
-                    UniqueData += file.Size;
-                }
-
-                processed++;
-                UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 2);
-            }
-
-            // flatten the groups into a single list of files to hash
-            var filesToHash = sizeGroups.SelectMany(g => g).ToList();
-
-            // hash all candidate files in parallel
-            await Parallel.ForEachAsync(filesToHash, new ParallelOptions
-            {
-                CancellationToken = cts.Token,
-                MaxDegreeOfParallelism = MaxThreads
-            }, (file, token) =>
-            {
-                token.ThrowIfCancellationRequested();
-                file.Hash(SelectedAlgorithm); // your existing sync hash method
-                Interlocked.Increment(ref processed);
-                UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 3);
-
-                return ValueTask.CompletedTask;
-            });
-
-            // group files by hash
-            var hashGroups = Files
-                .Where(f => f.State == FileEntryViewModel.FileState.hashed)
-                .GroupBy(f => f.HashString)
-                .Where(g => g.Count() > 1)  // only groups with potential duplicates
-                .ToList();
-
-            processed = 0;
-            int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
-
-            // compare files within each hash group
-            foreach (var group in hashGroups)
-            {
-                // optional: for weak hashes like CRC32, do byte-by-byte comparison
-                bool needFullCompare = SelectedAlgorithm == MainViewModel.CompareAlgorithm.Crc32PlusFullCompare;
-
-                // list to hold duplicates in this group
-                var duplicates = new List<FileEntryViewModel>();
-
-                // compare each file with every other file in the group
-                for (int i = 0; i < group.Count(); i++)
+                    MaxDegreeOfParallelism = MaxThreads,
+                    CancellationToken = cts.Token
+                }, (index, token) =>
                 {
-                    var fileA = group.ElementAt(i);
+                    cts.Token.ThrowIfCancellationRequested();
+                    fileEntries[index] = new FileEntryViewModel(allFiles[index]);
 
-                    // skip if already marked
-                    if (fileA.State != FileEntryViewModel.FileState.hashed)
+                    // accumulate total data
+                    lock (statUpdateLock)
                     {
-                        continue;
+                        TotalData += fileEntries[index].Size;
                     }
 
-                    for (int j = i + 1; j < group.Count(); j++)
+                    return ValueTask.CompletedTask;
+                });
+
+                // sequentially add to the ObservableCollection and update progress
+                processed = 0;
+                foreach (var entry in fileEntries)
+                {
+                    cts.Token.ThrowIfCancellationRequested();
+                Files.Add(entry);
+                processed++;
+                    UpdateProgressSafely(processed, fileEntries.Length, numberOfSteps, 1);
+                }
+
+                // create groups of files with same size
+                var sizeGroups = Files.GroupBy(f => f.Size)
+                                      .Where(g => g.Count() > 1)
+                                      .ToList();
+
+                // mark files with unique sizes as unique
+                var uniqueSizeFiles = Files.GroupBy(f => f.Size)
+                                           .Where(g => g.Count() == 1)
+                                           .SelectMany(g => g);
+
+                processed = 0;
+                foreach (var file in uniqueSizeFiles)
+                {
+                    file.State = FileEntryViewModel.FileState.unique;
+                    lock (statUpdateLock)
                     {
-                        var fileB = group.ElementAt(j);
+                        UniqueData += file.Size;
+                    }
+
+                    processed++;
+                    UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 2);
+                }
+
+                // flatten the groups into a single list of files to hash
+                var filesToHash = sizeGroups.SelectMany(g => g).ToList();
+
+                // hash all candidate files in parallel
+                await Parallel.ForEachAsync(filesToHash, new ParallelOptions
+                {
+                    CancellationToken = cts.Token,
+                    MaxDegreeOfParallelism = MaxThreads
+                }, (file, token) =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    file.Hash(SelectedAlgorithm); // your existing sync hash method
+                    Interlocked.Increment(ref processed);
+                    UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 3);
+
+                    return ValueTask.CompletedTask;
+                });
+
+                // group files by hash
+                var hashGroups = Files
+                    .Where(f => f.State == FileEntryViewModel.FileState.hashed)
+                    .GroupBy(f => f.HashString)
+                    .Where(g => g.Count() > 1)  // only groups with potential duplicates
+                    .ToList();
+
+                processed = 0;
+                int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
+
+                // compare files within each hash group
+                foreach (var group in hashGroups)
+                {
+                    // optional: for weak hashes like CRC32, do byte-by-byte comparison
+                    bool needFullCompare = SelectedAlgorithm == MainViewModel.CompareAlgorithm.Crc32PlusFullCompare;
+
+                    // list to hold duplicates in this group
+                    var duplicates = new List<FileEntryViewModel>();
+
+                    // compare each file with every other file in the group
+                    for (int i = 0; i < group.Count(); i++)
+                    {
+                        var fileA = group.ElementAt(i);
 
                         // skip if already marked
-                        if (fileB.State != FileEntryViewModel.FileState.hashed)
+                        if (fileA.State != FileEntryViewModel.FileState.hashed)
                         {
                             continue;
                         }
 
-                        // perform full comparison if needed
-                        bool isDuplicate = true;
-                        if (needFullCompare)
+                        for (int j = i + 1; j < group.Count(); j++)
                         {
-                            isDuplicate = AreFilesIdentical(fileA.Filename, fileB.Filename);
-                        }
+                            var fileB = group.ElementAt(j);
 
-                        // mark as duplicates if they match
-                        if (isDuplicate)
-                        {
-                            if (!duplicates.Contains(fileA))
+                            // skip if already marked
+                            if (fileB.State != FileEntryViewModel.FileState.hashed)
                             {
-                                duplicates.Add(fileA);
+                                continue;
                             }
-                            duplicates.Add(fileB);
+
+                            // perform full comparison if needed
+                            bool isDuplicate = true;
+                            if (needFullCompare)
+                            {
+                                isDuplicate = AreFilesIdentical(fileA.Filename, fileB.Filename);
+                            }
+
+                            // mark as duplicates if they match
+                            if (isDuplicate)
+                            {
+                                if (!duplicates.Contains(fileA))
+                                {
+                                    duplicates.Add(fileA);
+                                }
+                                duplicates.Add(fileB);
+                            }
                         }
-                    }
 
-                    // add the current file to duplicates if any were found
-                    if (duplicates.Count > 0)
-                    {
-                        // pick file with shortest filename to keep
-                        var fileToKeep = duplicates.OrderBy(f => f.Filename.Length).First();
-                        fileToKeep.State = FileEntryViewModel.FileState.keep;
-                        fileToKeep.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
-
-                        // mark the rest for deletion
-                        foreach (var file in duplicates.Except(new[] { fileToKeep }))
+                        // add the current file to duplicates if any were found
+                        if (duplicates.Count > 0)
                         {
-                            // mark for deletion
-                            file.State = FileEntryViewModel.FileState.delete;
+                            // pick file with shortest filename to keep
+                            var fileToKeep = duplicates.OrderBy(f => f.Filename.Length).First();
+                            fileToKeep.State = FileEntryViewModel.FileState.keep;
+                            fileToKeep.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
 
-                            file.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
+                            // mark the rest for deletion
+                            foreach (var file in duplicates.Except(new[] { fileToKeep }))
+                            {
+                                // mark for deletion
+                                file.State = FileEntryViewModel.FileState.delete;
 
-                            // update progress
-                            processed++;
-                            UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
+                                file.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
+
+                                // update progress
+                                processed++;
+                                UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
+                            }
+
+                            FileEntryViewModel.duplicateGroupIndex++;
+                        }
+                        else
+                        {
+                            // mark as unique if no duplicates
+                            fileA.State = FileEntryViewModel.FileState.unique;
+                            UniqueData += fileA.Size;
                         }
 
-                        FileEntryViewModel.duplicateGroupIndex++;
+                        // update progress
+                        processed++;
+                        UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
                     }
-                    else
-                    {
-                        // mark as unique if no duplicates
-                        fileA.State = FileEntryViewModel.FileState.unique;
-                        UniqueData += fileA.Size;
-                    }
-
-                    // update progress
-                    processed++;
-                    UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
                 }
             }
-        }
-        catch (OperationCanceledException)
-        {
-            // canceled
-        }
+            catch (OperationCanceledException)
+            {
+                // canceled
+            }
 
-        // mark as not scanning
-        IsScanning = false;
+            // mark as not scanning
+            IsScanning = false;
 
-        // clear cancellation token
-        cts = null;
+            // clear cancellation token
+            cts = null;
     }
 
     // Cancels current scan or delete task
@@ -494,26 +494,26 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     async Task DeleteSelectedAsync()
     {
-        // setup cancellation token
-        cts = new CancellationTokenSource();
+            // setup cancellation token
+            cts = new CancellationTokenSource();
 
-        // reset progress
-        ProgressValue = 0;
+            // reset progress
+            ProgressValue = 0;
 
-        // get files to delete
-        var filesToDelete = Files.Where(f => f.State == FileEntryViewModel.FileState.delete).ToList();
-        int total = filesToDelete.Count;
-        int processed = 0;
+            // get files to delete
+            var filesToDelete = Files.Where(f => f.State == FileEntryViewModel.FileState.delete).ToList();
+            int total = filesToDelete.Count;
+            int processed = 0;
 
         // delete files in parallel
         await Parallel.ForEachAsync(filesToDelete, new ParallelOptions
-        {
+            {
             MaxDegreeOfParallelism = MaxThreads
         }, (file, token) =>
-        {
-            file.DeleteToRecycleBin();
-            Interlocked.Increment(ref processed);
-            UpdateProgressSafely(processed, filesToDelete.Count);
+                {
+                    file.DeleteToRecycleBin();
+                    Interlocked.Increment(ref processed);
+                    UpdateProgressSafely(processed, filesToDelete.Count);
 
             return ValueTask.CompletedTask;
         });
@@ -554,11 +554,8 @@ public partial class MainViewModel : ObservableObject
         {
             lock (progressLock)
             {
-                if (Math.Abs(newValue - lastProgressValue) >= 0.1)
-                {
-                    lastProgressValue = newValue;
-                    App.Current.Dispatcher.InvokeAsync(() => ProgressValue = newValue);
-                }
+                lastProgressValue = newValue;
+                App.Current.Dispatcher.InvokeAsync(() => ProgressValue = newValue);
             }
         }
     }

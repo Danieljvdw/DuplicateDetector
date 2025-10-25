@@ -511,6 +511,15 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
 
+                // mark any files which have been hashed but not marked as a keep or delete (duplicate), then mark as unique
+                var hashedUniqueFiles = Files
+                .Where(f => f.State == FileEntryViewModel.FileState.hashed)
+                .ToList();
+
+                foreach (var file in hashedUniqueFiles)
+                {
+                    file.State = FileEntryViewModel.FileState.unique;
+                }
             });
         }
         catch (OperationCanceledException)

@@ -153,10 +153,19 @@ public partial class MainViewModel : ObservableObject
     // Supported hashing / comparison algorithms
     public enum CompareAlgorithm
     {
+        [Description("CRC32 (collision possible for millions of files)")]
         Crc32,
+
+        [Description("CRC32 + Full Compare (safe)")]
         Crc32PlusFullCompare,
+
+        [Description("MD5 (~1 in 10¹⁷ accidental collision)")]
         MD5,
+
+        [Description("SHA256 (~1 in 10⁷⁵ accidental collision)")]
         SHA256,
+
+        [Description("SHA512 (~1 in 10¹⁵⁰ accidental collision)")]
         SHA512
     }
 

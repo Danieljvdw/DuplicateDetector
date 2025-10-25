@@ -14,6 +14,7 @@
 
     <Window.Resources>
         <conv:ByteSizeConverter x:Key="ByteSizeConverter"/>
+        <conv:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
     </Window.Resources>
 
     <Grid Margin="10">
@@ -30,7 +31,14 @@
             <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100"/>
             <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}" Width="120"/>
             <TextBlock Text="Selected Algorithm:" VerticalAlignment="Center" Margin="10,0,0,0"/>
-            <ComboBox ItemsSource="{Binding CompareAlgorithms}" SelectedItem="{Binding SelectedAlgorithm, Mode=TwoWay}"/>
+            <ComboBox ItemsSource="{Binding CompareAlgorithms}" SelectedItem="{Binding SelectedAlgorithm, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <!-- Binding here is each enum value, not the ViewModel -->
+                        <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </StackPanel>
 
         <!-- Folder List -->

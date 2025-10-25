@@ -255,23 +255,20 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     async Task ScanAsync()
     {
-        await Task.Run(async () =>
+        // mark as scanning
+        IsScanning = true;
+
+        // clear previous results
+        Files.Clear();
+        FilesView.Refresh();
+
+        // setup cancellation token
+        cts = new CancellationTokenSource();
+
+        try
         {
-            // clear previous results
-            await App.Current.Dispatcher.InvokeAsync(() =>
+            await Task.Run(async () =>
             {
-                Files.Clear();
-                FilesView.Refresh();
-            });
-
-            // setup cancellation token
-            cts = new CancellationTokenSource();
-
-            try
-            {
-                // mark as scanning
-                IsScanning = true;
-
                 // reset progress
                 ProgressValue = 0;
 
@@ -341,19 +338,19 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(FilesView));
 
                 await App.Current.Dispatcher.InvokeAsync(() =>
-                {
-                    FilesView.Refresh();
-                });
+            {
+                FilesView.Refresh();
+            });
 
                 // create groups of files with same size
                 var sizeGroups = Files.GroupBy(f => f.Size)
-                                      .Where(g => g.Count() > 1)
-                                      .ToList();
+                                  .Where(g => g.Count() > 1)
+                                  .ToList();
 
                 // mark files with unique sizes as unique
                 var uniqueSizeFiles = Files.GroupBy(f => f.Size)
-                                           .Where(g => g.Count() == 1)
-                                           .SelectMany(g => g);
+                                       .Where(g => g.Count() == 1)
+                                       .SelectMany(g => g);
 
                 processed = 0;
 
@@ -374,6 +371,7 @@ public partial class MainViewModel : ObservableObject
                         semaphore.Release();
                     }
                 });
+
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
 
@@ -399,15 +397,16 @@ public partial class MainViewModel : ObservableObject
                         semaphore.Release();
                     }
                 });
+
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
 
                 // group files by hash
                 var hashGroups = Files
-                    .Where(f => f.State == FileEntryViewModel.FileState.hashed)
-                    .GroupBy(f => f.HashString)
-                    .Where(g => g.Count() > 1)  // only groups with potential duplicates
-                    .ToList();
+                .Where(f => f.State == FileEntryViewModel.FileState.hashed)
+                .GroupBy(f => f.HashString)
+                .Where(g => g.Count() > 1)  // only groups with potential duplicates
+                .ToList();
 
                 processed = 0;
                 int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
@@ -494,18 +493,21 @@ public partial class MainViewModel : ObservableObject
                         UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
                     }
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                // canceled
-            }
 
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // canceled
+        }
+        finally
+        {
             // mark as not scanning
             IsScanning = false;
 
             // clear cancellation token
             cts = null;
-        });
+        }
     }
 
     // Cancels current scan or delete task

@@ -143,6 +143,8 @@
             <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding ToKeep, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}" VerticalAlignment="Center"/>
         </StackPanel>
     </Grid>
 </Window>

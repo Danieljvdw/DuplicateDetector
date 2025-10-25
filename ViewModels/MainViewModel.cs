@@ -190,7 +190,7 @@ public partial class MainViewModel : ObservableObject
 
     // Currently selected hashing algorithm
     [ObservableProperty]
-    CompareAlgorithm selectedAlgorithm = CompareAlgorithm.Crc32;
+    CompareAlgorithm selectedAlgorithm = CompareAlgorithm.MD5;
 
     // Progress bar value (0–100%)
     [ObservableProperty]

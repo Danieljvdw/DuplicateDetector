@@ -97,7 +97,7 @@
             
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
-                <DataGridTextColumn Header="Size (Bytes)" Binding="{Binding Size}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Size" Binding="{Binding Size, Converter={StaticResource ByteSizeConverter}}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" IsReadOnly="True"/>
                 <DataGridTemplateColumn Header="State" Width="120">
                     <DataGridTemplateColumn.CellTemplate>
@@ -143,7 +143,7 @@
             <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding ToKeep, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}" VerticalAlignment="Center"/>
         </StackPanel>
     </Grid>

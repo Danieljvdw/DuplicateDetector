@@ -212,23 +212,19 @@ public partial class MainViewModel : ObservableObject
     int maxThreads = Environment.ProcessorCount;
 
     // Total bytes scanned
-    [ObservableProperty]
-    long totalData;
+    public long TotalData => Files.Sum(f => f.Size);
 
     // Bytes belonging to unique (non-duplicate) files
-    [ObservableProperty]
-    long uniqueData;
+    public long UniqueData => Files.Where(f => f.State == FileEntryViewModel.FileState.unique).Sum(f => f.Size);
 
     // Bytes that would be freed by deleting duplicates
-    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete)
-                                   .Sum(f => f.Size);
-
-    // Bytes that will remain after deleting files marked for deletion
-    public long TotalAfterDelete => TotalData - DeleteData;
+    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete).Sum(f => f.Size);
 
     // Bytes marked to keep (including unique + manually kept files)
-    public long ToKeep => Files.Where(f => f.State == FileEntryViewModel.FileState.keep || f.State == FileEntryViewModel.FileState.unique)
-                               .Sum(f => f.Size);
+    public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size);
+    // Bytes that will remain after deleting files marked for deletion
+
+    public long TotalAfterDelete => TotalData - DeleteData;
 
     // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;
@@ -245,8 +241,10 @@ public partial class MainViewModel : ObservableObject
                 {
                     newFile.OnStateChanged = () =>
                     {
+                        OnPropertyChanged(nameof(TotalData));
+                        OnPropertyChanged(nameof(UniqueData));
                         OnPropertyChanged(nameof(DeleteData));
-                        OnPropertyChanged(nameof(ToKeep));
+                        OnPropertyChanged(nameof(KeepData));
                         OnPropertyChanged(nameof(TotalAfterDelete));
                     };
                 }
@@ -255,8 +253,10 @@ public partial class MainViewModel : ObservableObject
             // Update DeleteData whenever collection changes
             App.Current.Dispatcher.Invoke(() =>
             {
+                OnPropertyChanged(nameof(TotalData));
+                OnPropertyChanged(nameof(UniqueData));
                 OnPropertyChanged(nameof(DeleteData));
-                OnPropertyChanged(nameof(ToKeep));
+                OnPropertyChanged(nameof(KeepData));
                 OnPropertyChanged(nameof(TotalAfterDelete));
             });
         };
@@ -307,13 +307,6 @@ public partial class MainViewModel : ObservableObject
                 // mark as scanning
                 IsScanning = true;
 
-                // lock for updating stats
-                object statUpdateLock = new object();
-
-                // reset stats
-                TotalData = 0;
-                UniqueData = 0;
-
                 // reset progress
                 ProgressValue = 0;
 
@@ -346,12 +339,6 @@ public partial class MainViewModel : ObservableObject
                     {
                         cts.Token.ThrowIfCancellationRequested();
                         fileEntries.Add(new FileEntryViewModel(file));
-
-                        // accumulate total data
-                        lock (statUpdateLock)
-                        {
-                            TotalData += file.Length;
-                        }
                     }
                     finally
                     {
@@ -408,10 +395,6 @@ public partial class MainViewModel : ObservableObject
                     {
                         cts.Token.ThrowIfCancellationRequested();
                         file.State = FileEntryViewModel.FileState.unique;
-                        lock (statUpdateLock)
-                        {
-                            UniqueData += file.Size;
-                        }
 
                         processed++;
                         UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 1);
@@ -534,7 +517,6 @@ public partial class MainViewModel : ObservableObject
                         {
                             // mark as unique if no duplicates
                             fileA.State = FileEntryViewModel.FileState.unique;
-                            UniqueData += fileA.Size;
                         }
 
                         // update progress

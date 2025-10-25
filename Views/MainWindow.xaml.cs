@@ -1,7 +1,7 @@
-﻿using System.Windows;
+﻿using DuplicateDetector.ViewModels;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 
 namespace DuplicateDetector;
 
@@ -12,19 +12,6 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    private void FilesDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        var depObj = (DependencyObject)e.OriginalSource;
-        while (depObj != null && !(depObj is DataGridCell))
-            depObj = VisualTreeHelper.GetParent(depObj);
-
-        if (depObj is DataGridCell cell && !cell.IsEditing)
-        {
-            var dataGrid = sender as DataGrid;
-            dataGrid?.BeginEdit();
-        }
-    }
-
     private void RemoveFolder_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.CommandParameter is string folderPath)
@@ -33,6 +20,26 @@ public partial class MainWindow : Window
             {
                 vm.Folders.Remove(folderPath);
             }
+        }
+    }
+
+    private void StateCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border border &&
+              border.DataContext is FileEntryViewModel file)
+        {
+            // Only toggle between keep <-> delete
+            if (file.State == FileEntryViewModel.FileState.keep)
+            {
+                file.State = FileEntryViewModel.FileState.delete;
+            }
+            else if (file.State == FileEntryViewModel.FileState.delete)
+            {
+                file.State = FileEntryViewModel.FileState.keep;
+            }
+
+            // Optional: prevent DataGrid row selection from stealing the click
+            e.Handled = true;
         }
     }
 }

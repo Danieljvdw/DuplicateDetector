@@ -30,6 +30,7 @@
             <Button Content="Scan" Command="{Binding ScanCommand}" Width="100"/>
             <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100"/>
             <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}" Width="120"/>
+            <Button Content="Copy Visible Files" Command="{Binding CopyFilesCommand}"/>
             <TextBlock Text="Selected Algorithm:" VerticalAlignment="Center" Margin="10,0,0,0"/>
             <ComboBox ItemsSource="{Binding CompareAlgorithms}" SelectedItem="{Binding SelectedAlgorithm, Mode=TwoWay}">
                 <ComboBox.ItemTemplate>

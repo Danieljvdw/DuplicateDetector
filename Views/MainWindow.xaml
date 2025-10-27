@@ -28,6 +28,7 @@
         <!-- Toolbar -->
         <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,10" VerticalAlignment="Center" HorizontalAlignment="Left">
             <Button Content="Scan" Command="{Binding ScanCommand}" Width="100"/>
+            <Button Content="Add Folder" Command="{Binding AddFolderCommand}" Width="120" Margin="0,5,0,0" HorizontalAlignment="Left"/>
             <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100"/>
             <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}" Width="120"/>
             <Button Content="Copy Visible Files" Command="{Binding CopyFilesCommand}"/>
@@ -67,8 +68,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- Add folder button for convenience -->
-                <Button Content="Add Folder" Command="{Binding AddFolderCommand}" Width="120" Margin="0,5,0,0" HorizontalAlignment="Left"/>
+                
             </StackPanel>
         </GroupBox>
 

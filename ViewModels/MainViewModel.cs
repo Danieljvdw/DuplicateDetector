@@ -296,7 +296,9 @@ public partial class MainViewModel : ObservableObject
         // clear previous results
         await App.Current.Dispatcher.InvokeAsync(() =>
         {
-            Files.Clear();
+            Files = new ObservableCollection<FileEntryViewModel>();
+            var cvs = new CollectionViewSource { Source = Files };
+            FilesView = cvs.View;
             FilesView.Refresh();
         });
 
@@ -670,7 +672,7 @@ public partial class MainViewModel : ObservableObject
             // Build a lookup of folder roots for relative paths
             var folderRoots = Folders.Select(f => f.Path).ToList();
 
-            int total = folderRoots.Count;
+            int total = visibleFiles.Count;
             int processed = 0;
 
             // update step time

@@ -21,148 +21,154 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="5"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
         <!-- Toolbar -->
-        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,10" VerticalAlignment="Center" HorizontalAlignment="Left">
-            <Button Content="Scan" Command="{Binding ScanCommand}" Width="100"/>
-            <Button Content="Add Folder" Command="{Binding AddFolderCommand}" Width="120" Margin="0,5,0,0" HorizontalAlignment="Left"/>
-            <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100"/>
-            <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}" Width="120"/>
-            <Button Content="Copy Visible Files" Command="{Binding CopyFilesCommand}"/>
-            <TextBlock Text="Selected Algorithm:" VerticalAlignment="Center" Margin="10,0,0,0"/>
-            <ComboBox ItemsSource="{Binding CompareAlgorithms}" SelectedItem="{Binding SelectedAlgorithm, Mode=TwoWay}">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                        <!-- Binding here is each enum value, not the ViewModel -->
-                        <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-        </StackPanel>
+        <Menu Grid.ColumnSpan="3">
+            <MenuItem Header="Help"/>
+        </Menu>
+        
+        <!-- control -->
+        <GroupBox Header="Control" Grid.Row="1">
+            <StackPanel>
+                <Button Content="Cancel" Command="{Binding CancelCommand}"/>
+                <Button Content="Scan" Command="{Binding ScanCommand}"/>
+                <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}"/>
+                <Button Content="Copy Visible Files" Command="{Binding CopyFilesCommand}"/>
+                <TextBlock Text="Selected Algorithm:"/>
+                <ComboBox ItemsSource="{Binding CompareAlgorithms}" SelectedItem="{Binding SelectedAlgorithm, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <!-- Binding here is each enum value, not the ViewModel -->
+                            <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- stats -->
+        <GroupBox Header="Stats" Grid.Row="2">
+            <!-- Progress and Stats -->
+            <StackPanel>
+                <!-- Percentage text -->
+                <TextBlock Text="{Binding ProgressValue, StringFormat={}{0:0.00}%}"/>
+
+                <!-- Progress bar -->
+                <ProgressBar Value="{Binding ProgressValue}" Maximum="100"/>
+
+                <!-- ETA -->
+                <TextBlock Text="{Binding EtaText}"/>
+
+                <!-- Stats -->
+                <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}"/>
+                <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}"/>
+                <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}"/>
+                <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}"/>
+                <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}"/>
+            </StackPanel>
+        </GroupBox>
 
         <!-- Folder List -->
-        <GroupBox Header="Folders to Scan" Grid.Row="1" Margin="0,0,0,10">
+        <GroupBox Header="Folders to Scan" Grid.Row="1" Grid.Column="1" Grid.RowSpan="2">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <!-- List of currently added folders -->
                     <ItemsControl ItemsSource="{Binding Folders}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <DockPanel Margin="2">
-                                    <!-- visibility checkbox -->
-                                    <CheckBox Content="{Binding Path}"
-                                              IsChecked="{Binding IsVisible, Mode=TwoWay}"
-                                              Checked="FolderVisibilityChanged"
-                                              Unchecked="FolderVisibilityChanged"
-                                              Margin="5,0"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <!-- Folder path -->
+                                        <ColumnDefinition Width="Auto" />
+                                        <!-- Remove button -->
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Checkbox and path -->
+                                    <CheckBox Grid.Column="0"
+                                      Content="{Binding Path}"
+                                      IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                      Checked="FolderVisibilityChanged"
+                                      Unchecked="FolderVisibilityChanged"/>
+
                                     <!-- Remove button -->
-                                    <Button Content="Remove"
-                                            Width="70"
-                                            CommandParameter="{Binding}"
-                                            Click="RemoveFolder_Click"
-                                            DockPanel.Dock="Right"/>
-                                </DockPanel>
+                                    <Button Grid.Column="1"
+                                    Content="Remove"
+                                    CommandParameter="{Binding}"
+                                    Click="RemoveFolder_Click"/>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <Button Content="Add Folder" Command="{Binding AddFolderCommand}" Width="120" Margin="0,5,0,0" HorizontalAlignment="Left"/>
                 </StackPanel>
             </ScrollViewer>
         </GroupBox>
-
-        <GridSplitter Grid.Row="2"
-              Height="6"
-              Background="#FFB0B0B0"
-              HorizontalAlignment="Stretch"
-              VerticalAlignment="Center"
-              Cursor="SizeNS"
-              ResizeDirection="Rows"
-              ResizeBehavior="PreviousAndNext"/>
         
         <!-- Files List -->
-        <DataGrid Grid.Row="3" ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
-            <!-- Hide selection highlight colors -->
-            <DataGrid.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="Transparent"/>
-            </DataGrid.Resources>
-            
-            <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow">
+        <GroupBox Header="Folders to Scan" Grid.Row="1" Grid.Column="2" Grid.RowSpan="2">
+            <DataGrid ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+                <!-- Hide selection highlight colors -->
+                <DataGrid.Resources>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="Transparent"/>
+                </DataGrid.Resources>
+
+                <!-- Highlight files marked for deletion in light red and keep in light green-->
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
                         <Style.Triggers>
-                        <!-- Highlight files marked for deletion in light red -->
-                        <DataTrigger Binding="{Binding State}" Value="delete">
-                            <Setter Property="Background" Value="#FFFFC0C0"/>
-                            <!-- light red -->
-                        </DataTrigger>
+                            
+                            <DataTrigger Binding="{Binding State}" Value="delete">
+                                <Setter Property="Background" Value="#FFFFC0C0"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding State}" Value="keep">
+                                <Setter Property="Background" Value="#FFC0FFC0"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
 
-                        <!-- Highlight files marked to keep in light green -->
-                        <DataTrigger Binding="{Binding State}" Value="keep">
-                            <Setter Property="Background" Value="#FFC0FFC0"/>
-                            <!-- light green -->
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </DataGrid.RowStyle>
-            
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
-                <DataGridTextColumn Header="Size" Binding="{Binding Size, Converter={StaticResource ByteSizeConverter}}" IsReadOnly="True"/>
-                <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" IsReadOnly="True"/>
-                <DataGridTemplateColumn Header="State" Width="120">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Border Background="Transparent"
-                                    MouseLeftButtonDown="StateCell_MouseLeftButtonDown"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Style.Triggers>
-                                            <!-- Only show clickable cursor and hover highlight for keep/delete -->
-                                            <DataTrigger Binding="{Binding State}" Value="keep">
-                                                <Setter Property="Cursor" Value="Hand"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding State}" Value="delete">
-                                                <Setter Property="Cursor" Value="Hand"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Text="{Binding State}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           FontWeight="Bold"/>
-                            </Border>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-        </DataGrid>
-
-        <!-- Progress and Stats -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,0,0">
-            <!-- Percentage text -->
-            <TextBlock Text="{Binding ProgressValue, StringFormat={}{0:0.00}%}" 
-               VerticalAlignment="Center" Width="50" TextAlignment="Right"/>
-
-            <!-- Progress bar -->
-            <ProgressBar Width="300" Height="20" Value="{Binding ProgressValue}" Maximum="100"/>
-
-            <!-- ETA -->
-            <TextBlock Text="{Binding EtaText}" VerticalAlignment="Center"/>
-
-            <!-- Stats -->
-            <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}" VerticalAlignment="Center"/>
-        </StackPanel>
+                <!-- define columns to display -->
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Size" Binding="{Binding Size, Converter={StaticResource ByteSizeConverter}}" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" IsReadOnly="True"/>
+                    <DataGridTemplateColumn Header="State" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Background="Transparent" MouseLeftButtonDown="StateCell_MouseLeftButtonDown" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                    <!-- Only show clickable cursor and hover highlight for keep/delete -->
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding State}" Value="keep">
+                                                    <Setter Property="Cursor" Value="Hand"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding State}" Value="delete">
+                                                    <Setter Property="Cursor" Value="Hand"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding State}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
     </Grid>
 </Window>

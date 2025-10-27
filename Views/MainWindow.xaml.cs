@@ -14,9 +14,9 @@ public partial class MainWindow : Window
 
     private void RemoveFolder_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.CommandParameter is string folderPath)
+        if (sender is Button btn && btn.CommandParameter is FolderEntryViewModel folderPath)
         {
-            if (DataContext is DuplicateDetector.ViewModels.MainViewModel vm)
+            if (DataContext is MainViewModel vm)
             {
                 vm.Folders.Remove(folderPath);
             }
@@ -41,5 +41,11 @@ public partial class MainWindow : Window
             // Optional: prevent DataGrid row selection from stealing the click
             e.Handled = true;
         }
+    }
+
+    private void FolderVisibilityChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+            vm.FilesView.Refresh();
     }
 }

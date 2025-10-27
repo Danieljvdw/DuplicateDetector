@@ -49,14 +49,18 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <DockPanel Margin="2">
-                                <!-- Folder name -->
-                                <TextBlock Text="{Binding}" VerticalAlignment="Center" Margin="0,0,10,0" />
                                 <!-- Remove button -->
                                 <Button Content="Remove"
-                                Width="70"
-                                CommandParameter="{Binding}"
-                                Click="RemoveFolder_Click"
-                                DockPanel.Dock="Right"/>
+                                        Width="70"
+                                        CommandParameter="{Binding}"
+                                        Click="RemoveFolder_Click"
+                                        DockPanel.Dock="Right"/>
+                                <!-- visibility checkbox -->
+                                <CheckBox Content="{Binding Path}"
+                                          IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                          Checked="FolderVisibilityChanged"
+                                          Unchecked="FolderVisibilityChanged"
+                                          Margin="5,0"/>
                             </DockPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

@@ -292,8 +292,11 @@ public partial class MainViewModel : ObservableObject
         IsScanning = true;
 
         // clear previous results
-        Files.Clear();
-        FilesView.Refresh();
+        await App.Current.Dispatcher.InvokeAsync(() =>
+        {
+            Files.Clear();
+            FilesView.Refresh();
+        });
 
         // setup cancellation token
         cts = new CancellationTokenSource();

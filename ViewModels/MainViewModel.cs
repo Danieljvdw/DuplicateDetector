@@ -640,7 +640,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     async Task CopyFilesAsync()
     {
-
         // setup cancellation token
         cts = new CancellationTokenSource();
 
@@ -657,18 +656,22 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        string destRoot = dialog.FileName;
+
+        // keep track of copied and failed files
+        int copied = 0;
+        int failed = 0;
+
+        // Capture visible files
+        var visibleFiles = FilesView.Cast<FileEntryViewModel>().ToList();
+        if (visibleFiles.Count == 0)
+        {
+            MessageBox.Show("No visible files to copy.");
+            return;
+        }
+
         await Task.Run(async () =>
         {
-            string destRoot = dialog.FileName;
-
-            // Capture visible files
-            var visibleFiles = FilesView.Cast<FileEntryViewModel>().ToList();
-            if (visibleFiles.Count == 0)
-            {
-                MessageBox.Show("No visible files to copy.");
-                return;
-            }
-
             // Build a lookup of folder roots for relative paths
             var folderRoots = Folders.Select(f => f.Path).ToList();
 
@@ -703,10 +706,12 @@ public partial class MainViewModel : ObservableObject
                     {
                         Directory.CreateDirectory(targetDir);
                         File.Copy(file.Filename, targetFile, overwrite: true);
+                        Interlocked.Increment(ref copied);
                     }
                     catch (Exception ex)
                     {
                         Debug.WriteLine($"Failed to copy {file.Filename}: {ex.Message}");
+                        Interlocked.Increment(ref failed);
                     }
 
                     Interlocked.Increment(ref processed);
@@ -721,11 +726,11 @@ public partial class MainViewModel : ObservableObject
             // wait for all deletions to complete
             await Task.WhenAll(copyTasks);
 
-            MessageBox.Show($"Copied {processed} files to:\n{destRoot}");
-
             // clear cancellation
             cts = null;
         });
+
+        MessageBox.Show($"Copied {copied} files to:\n{destRoot}\nFailed to copy {failed} files");
     }
 
     // Byte-by-byte comparison for final verification

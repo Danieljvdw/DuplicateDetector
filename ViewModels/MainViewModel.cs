@@ -148,6 +148,20 @@ public partial class FileEntryViewModel : ObservableObject
     }
 }
 
+public partial class FolderEntryViewModel : ObservableObject
+{
+    public string Path { get; }
+
+    [ObservableProperty]
+    bool isVisible = true;
+
+    public FolderEntryViewModel(string path)
+    {
+        Path = path;
+    }
+}
+
+
 public partial class MainViewModel : ObservableObject
 {
     // Supported hashing / comparison algorithms
@@ -174,7 +188,7 @@ public partial class MainViewModel : ObservableObject
 
     // List of selected folder paths
     [ObservableProperty]
-    ObservableCollection<string> folders = new();
+    ObservableCollection<FolderEntryViewModel> folders = new();
 
     // Collection of all scanned file entries
     [ObservableProperty]
@@ -241,6 +255,19 @@ public partial class MainViewModel : ObservableObject
         FilesView = cvs.View;
     }
 
+    bool FilterByVisibleFolders(object item)
+    {
+        if (item is not FileEntryViewModel f)
+            return false;
+
+        if (Folders.Count == 0)
+            return true;
+
+        var visibleFolders = Folders.Where(x => x.IsVisible).Select(x => x.Path);
+        return visibleFolders.Any(folder =>
+            f.Filename.StartsWith(folder, StringComparison.OrdinalIgnoreCase));
+    }
+
     // Opens a folder picker and adds a selected folder to scan list
     [RelayCommand]
     void AddFolder()
@@ -252,7 +279,8 @@ public partial class MainViewModel : ObservableObject
         };
         if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
         {
-            Folders.Add(dialog.FileName);
+            if (!Folders.Any(f => f.Path.Equals(dialog.FileName, StringComparison.OrdinalIgnoreCase)))
+                Folders.Add(new FolderEntryViewModel(dialog.FileName));
         }
     }
 
@@ -288,7 +316,7 @@ public partial class MainViewModel : ObservableObject
                 foreach (var folder in Folders)
                 {
                     cts.Token.ThrowIfCancellationRequested();
-                    var dirInfo = new DirectoryInfo(folder);
+                    var dirInfo = new DirectoryInfo(folder.Path);
                     allFiles.AddRange(dirInfo.GetFiles("*", System.IO.SearchOption.AllDirectories));
                 }
 
@@ -337,6 +365,7 @@ public partial class MainViewModel : ObservableObject
                 // Configure sorting behavior for file view
                 var cvs = new CollectionViewSource { Source = Files };
                 FilesView = cvs.View;
+                FilesView.Filter = FilterByVisibleFolders;
 
                 // Default sort: by duplicate group, size (desc), and filename
                 FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));

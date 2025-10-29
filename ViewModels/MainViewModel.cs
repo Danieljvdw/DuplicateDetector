@@ -232,7 +232,10 @@ public partial class MainViewModel : ObservableObject
             }
 
             // Update DeleteData whenever collection changes
-            OnPropertyChanged(nameof(DeleteData));
+            App.Current.Dispatcher.Invoke(() =>
+            {
+                OnPropertyChanged(nameof(DeleteData));
+            });
         };
 
         // Configure sorting behavior for file view
@@ -267,8 +270,13 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     async Task ScanAsync()
     {
+        await Task.Run(async () =>
+        {
             // clear previous results
-            Files.Clear();
+            await App.Current.Dispatcher.InvokeAsync(() =>
+            {
+                Files.Clear();
+            });
 
             // setup cancellation token
             cts = new CancellationTokenSource();
@@ -291,6 +299,9 @@ public partial class MainViewModel : ObservableObject
                 // reset duplicate group index
                 FileEntryViewModel.duplicateGroupIndex = 0;
 
+                // sempaphore to limit concurrency
+                var semaphore = new SemaphoreSlim(MaxThreads);
+
                 // populate file list
                 var allFiles = new List<FileInfo>();
                 foreach (var folder in Folders)
@@ -305,36 +316,56 @@ public partial class MainViewModel : ObservableObject
                 int processed = 0;
 
                 // create file entries in parallel
-                var fileEntries = new FileEntryViewModel[allFiles.Count];
+                var fileEntries = new List<FileEntryViewModel>();
 
-                // parallel creation using async style
-                await Parallel.ForEachAsync(Enumerable.Range(0, allFiles.Count), new ParallelOptions
+                var fileTasks = allFiles.Select(async file =>
                 {
-                    MaxDegreeOfParallelism = MaxThreads,
-                    CancellationToken = cts.Token
-                }, (index, token) =>
-                {
-                    cts.Token.ThrowIfCancellationRequested();
-                    fileEntries[index] = new FileEntryViewModel(allFiles[index]);
-
-                    // accumulate total data
-                    lock (statUpdateLock)
+                    await semaphore.WaitAsync(cts.Token);
+                    try
                     {
-                        TotalData += fileEntries[index].Size;
-                    }
+                        cts.Token.ThrowIfCancellationRequested();
+                        fileEntries.Add(new FileEntryViewModel(file));
 
-                    return ValueTask.CompletedTask;
+                        // accumulate total data
+                        lock (statUpdateLock)
+                        {
+                            TotalData += file.Length;
+                        }
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
                 });
+
+                // wait for all files to complete
+                await Task.WhenAll(fileTasks);
 
                 // sequentially add to the ObservableCollection and update progress
                 processed = 0;
-                foreach (var entry in fileEntries)
+
+                // Semaphore to limit concurrency
+                fileTasks = fileEntries.Select(async file =>
                 {
-                    cts.Token.ThrowIfCancellationRequested();
-                Files.Add(entry);
-                processed++;
-                    UpdateProgressSafely(processed, fileEntries.Length, numberOfSteps, 1);
-                }
+                    await semaphore.WaitAsync(cts.Token);
+                    try
+                    {
+                        cts.Token.ThrowIfCancellationRequested();
+                        await App.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            Files.Add(file);
+                        });
+                        processed++;
+                        UpdateProgressSafely(processed, fileEntries.Count, numberOfSteps, 1);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                // wait for all files to complete
+                await Task.WhenAll(fileTasks);
 
                 // create groups of files with same size
                 var sizeGroups = Files.GroupBy(f => f.Size)
@@ -347,35 +378,55 @@ public partial class MainViewModel : ObservableObject
                                            .SelectMany(g => g);
 
                 processed = 0;
-                foreach (var file in uniqueSizeFiles)
-                {
-                    file.State = FileEntryViewModel.FileState.unique;
-                    lock (statUpdateLock)
-                    {
-                        UniqueData += file.Size;
-                    }
 
-                    processed++;
-                    UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 2);
-                }
+                // Semaphore to limit concurrency
+                fileTasks = uniqueSizeFiles.Select(async file =>
+                {
+                    await semaphore.WaitAsync(cts.Token);
+                    try
+                    {
+                        cts.Token.ThrowIfCancellationRequested();
+                        file.State = FileEntryViewModel.FileState.unique;
+                        lock (statUpdateLock)
+                        {
+                            UniqueData += file.Size;
+                        }
+
+                        processed++;
+                        UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 2);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+                // wait for all files to complete
+                await Task.WhenAll(fileTasks);
 
                 // flatten the groups into a single list of files to hash
                 var filesToHash = sizeGroups.SelectMany(g => g).ToList();
 
-                // hash all candidate files in parallel
-                await Parallel.ForEachAsync(filesToHash, new ParallelOptions
-                {
-                    CancellationToken = cts.Token,
-                    MaxDegreeOfParallelism = MaxThreads
-                }, (file, token) =>
-                {
-                    token.ThrowIfCancellationRequested();
-                    file.Hash(SelectedAlgorithm); // your existing sync hash method
-                    Interlocked.Increment(ref processed);
-                    UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 3);
+                processed = 0;
 
-                    return ValueTask.CompletedTask;
+                // hash all candidate files in parallel
+                // Semaphore to limit concurrency
+                fileTasks = filesToHash.Select(async file =>
+                {
+                    await semaphore.WaitAsync(cts.Token);
+                    try
+                    {
+                        cts.Token.ThrowIfCancellationRequested();
+                        file.Hash(SelectedAlgorithm); // your existing sync hash method
+                        Interlocked.Increment(ref processed);
+                        UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 3);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
                 });
+                // wait for all files to complete
+                await Task.WhenAll(fileTasks);
 
                 // group files by hash
                 var hashGroups = Files
@@ -481,6 +532,7 @@ public partial class MainViewModel : ObservableObject
 
             // clear cancellation token
             cts = null;
+        });
     }
 
     // Cancels current scan or delete task

@@ -216,9 +216,14 @@ public partial class MainViewModel : ObservableObject
     private double lastProgressValue = 0;
     private readonly object progressLock = new();
 
-    // Whether scanning is currently active
+    // Whether a process is currently running
     [ObservableProperty]
-    bool isScanning;
+    bool isBusy;
+
+    // whether the buttons can be used
+    public bool CanRunOperations => !IsBusy;
+    public bool CanCancel => IsBusy;
+
 
     // Optional filter to display only certain file states
     [ObservableProperty]
@@ -264,6 +269,15 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    partial void OnIsBusyChanged(bool value)
+    {
+        ScanCommand.NotifyCanExecuteChanged();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+        CopyFilesCommand.NotifyCanExecuteChanged();
+        AddFolderCommand.NotifyCanExecuteChanged();
+        CancelCommand.NotifyCanExecuteChanged();
+    }
+
     // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;
 
@@ -293,7 +307,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Opens a folder picker and adds a selected folder to scan list
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperations))]
     void AddFolder()
     {
         var dialog = new CommonOpenFileDialog()
@@ -309,11 +323,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Main method to scan all folders and detect duplicates
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task ScanAsync()
     {
-        // mark as scanning
-        IsScanning = true;
+        // set busy state
+        IsBusy = true;
 
         // clear previous results
         await App.Current.Dispatcher.InvokeAsync(() =>
@@ -601,25 +615,28 @@ public partial class MainViewModel : ObservableObject
         }
         finally
         {
-            // mark as not scanning
-            IsScanning = false;
-
             // clear cancellation token
             cts = null;
         }
+
+        // clear busy state
+        IsBusy = false;
     }
 
     // Cancels current scan or delete task
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanCancel))]
     void Cancel()
     {
         cts?.Cancel();
     }
 
     // Deletes all files marked for deletion (moves to recycle bin)
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task DeleteSelectedAsync()
     {
+        // set busy state
+        IsBusy = true;
+
         await Task.Run(async () =>
         {
             // setup cancellation token
@@ -660,11 +677,17 @@ public partial class MainViewModel : ObservableObject
             // clear cancellation token
             cts = null;
         });
+
+        // clear busy state
+        IsBusy = false;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task CopyFilesAsync()
     {
+        // set busy state
+        IsBusy = true;
+
         // setup cancellation token
         cts = new CancellationTokenSource();
 
@@ -755,7 +778,11 @@ public partial class MainViewModel : ObservableObject
             cts = null;
         });
 
+        // show summary
         MessageBox.Show($"Copied {copied} files to:\n{destRoot}\nFailed to copy {failed} files");
+
+        // clear busy state
+        IsBusy = false;
     }
 
     // Byte-by-byte comparison for final verification

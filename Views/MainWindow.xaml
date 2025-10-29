@@ -60,10 +60,18 @@
         </GroupBox>
 
         <!-- Files List -->
-        <DataGrid Grid.Row="2" ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False">
+        <DataGrid Grid.Row="2" ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+            <!-- Hide selection highlight colors -->
+            <DataGrid.Resources>
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="Transparent"/>
+            </DataGrid.Resources>
+            
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
-                    <Style.Triggers>
+                        <Style.Triggers>
                         <!-- Highlight files marked for deletion in light red -->
                         <DataTrigger Binding="{Binding State}" Value="delete">
                             <Setter Property="Background" Value="#FFFFC0C0"/>
@@ -78,6 +86,7 @@
                     </Style.Triggers>
                 </Style>
             </DataGrid.RowStyle>
+            
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Size (Bytes)" Binding="{Binding Size}" IsReadOnly="True"/>
@@ -107,7 +116,6 @@
                                            VerticalAlignment="Center"
                                            FontWeight="Bold"/>
                             </Border>
-
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

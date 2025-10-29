@@ -15,6 +15,7 @@
     <Window.Resources>
         <conv:ByteSizeConverter x:Key="ByteSizeConverter"/>
         <conv:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+        <conv:PercentToStarConverter x:Key="PercentToStarConverter"/>
     </Window.Resources>
 
     <Grid Margin="10">
@@ -70,10 +71,24 @@
 
                 <!-- Stats -->
                 <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}"/>
-                <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}"/>
-                <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}"/>
-                <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}"/>
+                <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" Background="LightBlue"/>
+                <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" Background="#FFFFC0C0"/>
+                <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" Background="#FFC0FFC0"/>
                 <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}"/>
+
+                <!-- Visual stat representation -->
+                <TextBlock Text="File Breakdown:"/>
+                <Grid Height="25" HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{Binding KeepPercentage, Converter={StaticResource PercentToStarConverter}}"/>
+                        <ColumnDefinition Width="{Binding DeletePercentage, Converter={StaticResource PercentToStarConverter}}"/>
+                        <ColumnDefinition Width="{Binding UniquePercentage, Converter={StaticResource PercentToStarConverter}}"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="#FFC0FFC0"/>
+                    <Border Grid.Column="1" Background="#FFFFC0C0"/>
+                    <Border Grid.Column="2" Background="LightBlue"/>
+                </Grid>
             </StackPanel>
         </GroupBox>
 
@@ -129,12 +144,14 @@
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
                         <Style.Triggers>
-                            
                             <DataTrigger Binding="{Binding State}" Value="delete">
                                 <Setter Property="Background" Value="#FFFFC0C0"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding State}" Value="keep">
                                 <Setter Property="Background" Value="#FFC0FFC0"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding State}" Value="unique">
+                                <Setter Property="Background" Value="LightBlue"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

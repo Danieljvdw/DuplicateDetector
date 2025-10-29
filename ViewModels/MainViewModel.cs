@@ -238,9 +238,14 @@ public partial class MainViewModel : ObservableObject
 
     // Bytes marked to keep (including unique + manually kept files)
     public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size);
-    // Bytes that will remain after deleting files marked for deletion
 
+    // Bytes that will remain after deleting files marked for deletion
     public long TotalAfterDelete => TotalData - DeleteData;
+
+    // for stacked chart displaying percentages
+    public double KeepPercentage => TotalData > 0 ? (double)KeepData / TotalData : 0;
+    public double DeletePercentage => TotalData > 0 ? (double)DeleteData / TotalData : 0;
+    public double UniquePercentage => TotalData > 0 ? (double)UniqueData / TotalData : 0;
 
     // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;
@@ -351,6 +356,9 @@ public partial class MainViewModel : ObservableObject
                             OnPropertyChanged(nameof(DeleteData));
                             OnPropertyChanged(nameof(KeepData));
                             OnPropertyChanged(nameof(TotalAfterDelete));
+                            OnPropertyChanged(nameof(KeepPercentage));
+                            OnPropertyChanged(nameof(DeletePercentage));
+                            OnPropertyChanged(nameof(UniquePercentage));
                         };
                         tempObservableFiles.Add(newFile);
 

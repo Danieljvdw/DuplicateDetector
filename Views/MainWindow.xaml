@@ -105,7 +105,14 @@
 
         <!-- Progress and Stats -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,0,0">
+            <!-- Percentage text -->
+            <TextBlock Text="{Binding ProgressValue, StringFormat={}{0:0.##}%}" 
+               VerticalAlignment="Center" Width="50" TextAlignment="Right"/>
+
+            <!-- Progress bar -->
             <ProgressBar Width="300" Height="20" Value="{Binding ProgressValue}" Maximum="100"/>
+
+            <!-- Stats -->
             <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" VerticalAlignment="Center"/>

@@ -86,17 +86,19 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Border Background="Transparent"
-                                    Cursor="Hand"
                                     MouseLeftButtonDown="StateCell_MouseLeftButtonDown"
                                     HorizontalAlignment="Stretch"
                                     VerticalAlignment="Stretch">
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#110000FF"/>
-                                                <!-- faint blue highlight -->
-                                            </Trigger>
+                                            <!-- Only show clickable cursor and hover highlight for keep/delete -->
+                                            <DataTrigger Binding="{Binding State}" Value="keep">
+                                                <Setter Property="Cursor" Value="Hand"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding State}" Value="delete">
+                                                <Setter Property="Cursor" Value="Hand"/>
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>

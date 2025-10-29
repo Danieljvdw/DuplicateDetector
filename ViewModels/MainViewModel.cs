@@ -31,8 +31,21 @@ public partial class FileEntryViewModel : ObservableObject
     [ObservableProperty]
     long size;
 
-    [ObservableProperty]
-    FileState state;
+    public Action? OnStateChanged;
+
+    private FileState state;
+    public FileState State
+    {
+        get => state;
+        set
+        {
+            if (SetProperty(ref state, value))
+            {
+                OnStateChanged?.Invoke();
+            }
+        }
+    }
+
 
     [ObservableProperty]
     string? hashString = null;
@@ -153,7 +166,30 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     long uniqueData;        // total bytes unique
 
+    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete)
+                                   .Sum(f => f.Size);
+
     private CancellationTokenSource? cts = null;
+
+    public MainViewModel()
+    {
+        // Listen for collection changes
+        Files.CollectionChanged += (s, e) =>
+        {
+            // Subscribe to OnStateChanged for new items
+            if (e.NewItems != null)
+            {
+                foreach (FileEntryViewModel newFile in e.NewItems)
+                {
+                    newFile.OnStateChanged = () => OnPropertyChanged(nameof(DeleteData));
+                }
+            }
+
+            // Trigger DeleteData update on any collection change
+            OnPropertyChanged(nameof(DeleteData));
+        };
+    }
+
 
     [RelayCommand]
     private void AddFolder()

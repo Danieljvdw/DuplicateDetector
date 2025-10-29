@@ -4,8 +4,10 @@ using Microsoft.VisualBasic.FileIO;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Windows;
 using System.Windows.Data;
 
 namespace DuplicateDetector.ViewModels;
@@ -629,6 +631,97 @@ public partial class MainViewModel : ObservableObject
             await Task.WhenAll(deleteTasks);
 
             // clear cancellation token
+            cts = null;
+        });
+    }
+
+    [RelayCommand]
+    async Task CopyFilesAsync()
+    {
+
+        // setup cancellation token
+        cts = new CancellationTokenSource();
+
+        // reset progress
+        ProgressValue = 0;
+
+        var dialog = new CommonOpenFileDialog()
+        {
+            IsFolderPicker = true,
+            Title = "Select destination folder"
+        };
+        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+        {
+            return;
+        }
+
+        await Task.Run(async () =>
+        {
+            string destRoot = dialog.FileName;
+
+            // Capture visible files
+            var visibleFiles = FilesView.Cast<FileEntryViewModel>().ToList();
+            if (visibleFiles.Count == 0)
+            {
+                MessageBox.Show("No visible files to copy.");
+                return;
+            }
+
+            // Build a lookup of folder roots for relative paths
+            var folderRoots = Folders.Select(f => f.Path).ToList();
+
+            int total = folderRoots.Count;
+            int processed = 0;
+
+            // update step time
+            stepStartTime = DateTime.UtcNow;
+
+            // Semaphore to limit concurrency
+            using var semaphore = new SemaphoreSlim(MaxThreads);
+            var copyTasks = visibleFiles.Select(async file =>
+            {
+                await semaphore.WaitAsync(cts.Token);
+                try
+                {
+                    cts.Token.ThrowIfCancellationRequested();
+
+                    // Find which root folder this file came from
+                    string? root = folderRoots.FirstOrDefault(r =>
+                        file.Filename.StartsWith(r, StringComparison.OrdinalIgnoreCase));
+                    if (root == null)
+                    {
+                        return;
+                    }
+
+                    string relativePath = Path.GetRelativePath(root, file.Filename);
+                    string targetDir = Path.Combine(destRoot, Path.GetFileName(root), Path.GetDirectoryName(relativePath) ?? "");
+                    string targetFile = Path.Combine(targetDir, Path.GetFileName(file.Filename));
+
+                    try
+                    {
+                        Directory.CreateDirectory(targetDir);
+                        File.Copy(file.Filename, targetFile, overwrite: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Failed to copy {file.Filename}: {ex.Message}");
+                    }
+
+                    Interlocked.Increment(ref processed);
+                    UpdateProgressSafely(processed, total);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+
+            // wait for all deletions to complete
+            await Task.WhenAll(copyTasks);
+
+            MessageBox.Show($"Copied {processed} files to:\n{destRoot}");
+
+            // clear cancellation
             cts = null;
         });
     }

@@ -246,9 +246,6 @@ public partial class MainViewModel : ObservableObject
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
-
-        // Auto-refresh view when collection changes
-        Files.CollectionChanged += (s, e) => FilesView.Refresh();
     }
 
     // Opens a folder picker and adds a selected folder to scan list
@@ -276,6 +273,7 @@ public partial class MainViewModel : ObservableObject
             await App.Current.Dispatcher.InvokeAsync(() =>
             {
                 Files.Clear();
+                FilesView.Refresh();
             });
 
             // setup cancellation token
@@ -341,28 +339,28 @@ public partial class MainViewModel : ObservableObject
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
 
-                // sequentially add to the ObservableCollection and update progress
+                // Sequentially add to the ObservableCollection in batches
                 processed = 0;
-
-                // Semaphore to limit concurrency
-                fileTasks = fileEntries.Select(async file =>
+                const int batchSize = 100; // adjust batch size as needed
+                for (int i = 0; i < fileEntries.Count; i += batchSize)
                 {
-                    await semaphore.WaitAsync(cts.Token);
-                    try
+                    cts.Token.ThrowIfCancellationRequested();
+                    var batch = fileEntries.Skip(i).Take(batchSize).ToList();
+
+                    // Add a batch on the UI thread
+                    await App.Current.Dispatcher.InvokeAsync(() =>
                     {
-                        cts.Token.ThrowIfCancellationRequested();
-                        await App.Current.Dispatcher.InvokeAsync(() =>
+                        foreach (var f in batch)
                         {
-                            Files.Add(file);
-                        });
-                        processed++;
-                        UpdateProgressSafely(processed, fileEntries.Count, numberOfSteps, 1);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                });
+                            Files.Add(f);
+                        }
+
+                        FilesView.Refresh();
+                    });
+
+                    processed += batch.Count;
+                    UpdateProgressSafely(processed, fileEntries.Count, numberOfSteps, 0);
+                }
 
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
@@ -393,7 +391,7 @@ public partial class MainViewModel : ObservableObject
                         }
 
                         processed++;
-                        UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 2);
+                        UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 1);
                     }
                     finally
                     {
@@ -418,7 +416,7 @@ public partial class MainViewModel : ObservableObject
                         cts.Token.ThrowIfCancellationRequested();
                         file.Hash(SelectedAlgorithm); // your existing sync hash method
                         Interlocked.Increment(ref processed);
-                        UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 3);
+                        UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 2);
                     }
                     finally
                     {
@@ -504,7 +502,7 @@ public partial class MainViewModel : ObservableObject
 
                                 // update progress
                                 processed++;
-                                UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
+                                UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
                             }
 
                             FileEntryViewModel.duplicateGroupIndex++;
@@ -518,7 +516,7 @@ public partial class MainViewModel : ObservableObject
 
                         // update progress
                         processed++;
-                        UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 4);
+                        UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
                     }
                 }
             }
@@ -607,16 +605,16 @@ public partial class MainViewModel : ObservableObject
     // Safely updates UI progress with throttling to avoid lag
     private void UpdateProgressSafely(int processed, int files)
     {
-        UpdateProgressSafely(processed, files, 1, 1);
+        UpdateProgressSafely(processed, files, 1, 0);
     }
 
     private void UpdateProgressSafely(int processed, int files, int numberOfSteps, int step)
     {
         // compute new value
-        double newValue = ((double)processed / files) * ((double)step / numberOfSteps) * 100;
+        double newValue = ((double)processed / files * 100 / numberOfSteps) + ((double)step / numberOfSteps * 100);
 
         // only update if change is noticeable (e.g., >= 0.1%)
-        if (Math.Abs(newValue - lastProgressValue) >= 0.1)
+        if (Math.Abs(newValue - lastProgressValue) >= 0.01)
         {
             lock (progressLock)
             {

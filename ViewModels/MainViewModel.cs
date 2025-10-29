@@ -494,6 +494,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     async Task DeleteSelectedAsync()
     {
+        await Task.Run(async () =>
+        {
             // setup cancellation token
             cts = new CancellationTokenSource();
 
@@ -505,17 +507,29 @@ public partial class MainViewModel : ObservableObject
             int total = filesToDelete.Count;
             int processed = 0;
 
-        // delete files in parallel
-        await Parallel.ForEachAsync(filesToDelete, new ParallelOptions
+            // Semaphore to limit concurrency
+            using var semaphore = new SemaphoreSlim(MaxThreads);
+            var deleteTasks = filesToDelete.Select(async file =>
             {
-            MaxDegreeOfParallelism = MaxThreads
-        }, (file, token) =>
+                await semaphore.WaitAsync(cts.Token);
+                try
                 {
+                    cts.Token.ThrowIfCancellationRequested();
                     file.DeleteToRecycleBin();
                     Interlocked.Increment(ref processed);
                     UpdateProgressSafely(processed, filesToDelete.Count);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
 
-            return ValueTask.CompletedTask;
+            // wait for all deletions to complete
+            await Task.WhenAll(deleteTasks);
+
+            // clear cancellation token
+            cts = null;
         });
     }
 

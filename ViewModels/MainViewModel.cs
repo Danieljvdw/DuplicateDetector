@@ -223,6 +223,13 @@ public partial class MainViewModel : ObservableObject
     public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete)
                                    .Sum(f => f.Size);
 
+    // Bytes that will remain after deleting files marked for deletion
+    public long TotalAfterDelete => TotalData - DeleteData;
+
+    // Bytes marked to keep (including unique + manually kept files)
+    public long ToKeep => Files.Where(f => f.State == FileEntryViewModel.FileState.keep || f.State == FileEntryViewModel.FileState.unique)
+                               .Sum(f => f.Size);
+
     // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;
 
@@ -236,7 +243,12 @@ public partial class MainViewModel : ObservableObject
             {
                 foreach (FileEntryViewModel newFile in e.NewItems)
                 {
-                    newFile.OnStateChanged = () => OnPropertyChanged(nameof(DeleteData));
+                    newFile.OnStateChanged = () =>
+                    {
+                        OnPropertyChanged(nameof(DeleteData));
+                        OnPropertyChanged(nameof(ToKeep));
+                        OnPropertyChanged(nameof(TotalAfterDelete));
+                    };
                 }
             }
 
@@ -244,6 +256,8 @@ public partial class MainViewModel : ObservableObject
             App.Current.Dispatcher.Invoke(() =>
             {
                 OnPropertyChanged(nameof(DeleteData));
+                OnPropertyChanged(nameof(ToKeep));
+                OnPropertyChanged(nameof(TotalAfterDelete));
             });
         };
 

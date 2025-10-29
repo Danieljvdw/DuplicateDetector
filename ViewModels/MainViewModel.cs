@@ -181,7 +181,7 @@ public partial class MainViewModel : ObservableObject
     ObservableCollection<FileEntryViewModel> files = new();
 
     // CollectionView for sorting, grouping, and filtering
-    public ICollectionView FilesView { get; }
+    public ICollectionView FilesView { get; set; }
 
 #if false // want to enable storing hashes in file for low RAM usage
     [ObservableProperty]
@@ -209,7 +209,7 @@ public partial class MainViewModel : ObservableObject
 
     // Max degree of parallelism
     [ObservableProperty]
-    int maxThreads = Environment.ProcessorCount;
+    int maxThreads = Environment.ProcessorCount * 2;
 
     // Total bytes scanned
     public long TotalData => Files.Sum(f => f.Size);
@@ -231,44 +231,9 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        // Attach handler to Files collection change events
-        Files.CollectionChanged += (s, e) =>
-        {
-            // Subscribe to OnStateChanged of each new file
-            if (e.NewItems != null)
-            {
-                foreach (FileEntryViewModel newFile in e.NewItems)
-                {
-                    newFile.OnStateChanged = () =>
-                    {
-                        OnPropertyChanged(nameof(TotalData));
-                        OnPropertyChanged(nameof(UniqueData));
-                        OnPropertyChanged(nameof(DeleteData));
-                        OnPropertyChanged(nameof(KeepData));
-                        OnPropertyChanged(nameof(TotalAfterDelete));
-                    };
-                }
-            }
-
-            // Update DeleteData whenever collection changes
-            App.Current.Dispatcher.Invoke(() =>
-            {
-                OnPropertyChanged(nameof(TotalData));
-                OnPropertyChanged(nameof(UniqueData));
-                OnPropertyChanged(nameof(DeleteData));
-                OnPropertyChanged(nameof(KeepData));
-                OnPropertyChanged(nameof(TotalAfterDelete));
-            });
-        };
-
         // Configure sorting behavior for file view
         var cvs = new CollectionViewSource { Source = Files };
         FilesView = cvs.View;
-
-        // Default sort: by duplicate group, size (desc), and filename
-        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
-        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
-        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
     }
 
     // Opens a folder picker and adds a selected folder to scan list
@@ -330,7 +295,7 @@ public partial class MainViewModel : ObservableObject
                 int processed = 0;
 
                 // create file entries in parallel
-                var fileEntries = new List<FileEntryViewModel>();
+                ObservableCollection<FileEntryViewModel> tempObservableFiles = new ObservableCollection<FileEntryViewModel>();
 
                 var fileTasks = allFiles.Select(async file =>
                 {
@@ -338,7 +303,19 @@ public partial class MainViewModel : ObservableObject
                     try
                     {
                         cts.Token.ThrowIfCancellationRequested();
-                        fileEntries.Add(new FileEntryViewModel(file));
+                        var newFile = new FileEntryViewModel(file);
+                        newFile.OnStateChanged = () =>
+                        {
+                            OnPropertyChanged(nameof(TotalData));
+                            OnPropertyChanged(nameof(UniqueData));
+                            OnPropertyChanged(nameof(DeleteData));
+                            OnPropertyChanged(nameof(KeepData));
+                            OnPropertyChanged(nameof(TotalAfterDelete));
+                        };
+                        tempObservableFiles.Add(newFile);
+
+                        processed++;
+                        UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 0);
                     }
                     finally
                     {
@@ -349,31 +326,24 @@ public partial class MainViewModel : ObservableObject
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
 
-                // Sequentially add to the ObservableCollection in batches
-                processed = 0;
-                const int batchSize = 100; // adjust batch size as needed
-                for (int i = 0; i < fileEntries.Count; i += batchSize)
+                // update Files
+                Files = tempObservableFiles;
+
+                // Configure sorting behavior for file view
+                var cvs = new CollectionViewSource { Source = Files };
+                FilesView = cvs.View;
+
+                // Default sort: by duplicate group, size (desc), and filename
+                FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
+                FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
+                FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
+
+                OnPropertyChanged(nameof(FilesView));
+
+                await App.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    cts.Token.ThrowIfCancellationRequested();
-                    var batch = fileEntries.Skip(i).Take(batchSize).ToList();
-
-                    // Add a batch on the UI thread
-                    await App.Current.Dispatcher.InvokeAsync(() =>
-                    {
-                        foreach (var f in batch)
-                        {
-                            Files.Add(f);
-                        }
-
-                        FilesView.Refresh();
-                    });
-
-                    processed += batch.Count;
-                    UpdateProgressSafely(processed, fileEntries.Count, numberOfSteps, 0);
-                }
-
-                // wait for all files to complete
-                await Task.WhenAll(fileTasks);
+                    FilesView.Refresh();
+                });
 
                 // create groups of files with same size
                 var sizeGroups = Files.GroupBy(f => f.Size)

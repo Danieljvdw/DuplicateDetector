@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Data;
@@ -246,6 +247,22 @@ public partial class MainViewModel : ObservableObject
     public double KeepPercentage => TotalData > 0 ? (double)KeepData / TotalData : 0;
     public double DeletePercentage => TotalData > 0 ? (double)DeleteData / TotalData : 0;
     public double UniquePercentage => TotalData > 0 ? (double)UniqueData / TotalData : 0;
+
+    // application version
+    public string Version
+    {
+        get
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            if (version == null)
+            {
+                return "unknown";
+            }
+
+            // Take Major, Minor, Build (skip Revision)
+            return $"v{version.Major}.{version.Minor}.{version.Build}";
+        }
+    }
 
     // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;

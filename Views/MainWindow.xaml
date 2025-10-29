@@ -187,5 +187,10 @@
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>
+
+        <!-- Status Bar at the bottom -->
+        <StatusBar Grid.Row="3" Grid.ColumnSpan="3">
+            <TextBlock Text="{Binding Version}" />
+        </StatusBar>
     </Grid>
 </Window>

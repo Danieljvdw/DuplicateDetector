@@ -24,4 +24,15 @@ public partial class MainWindow : Window
             dataGrid?.BeginEdit();
         }
     }
+
+    private void RemoveFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.CommandParameter is string folderPath)
+        {
+            if (DataContext is DuplicateDetector.ViewModels.MainViewModel vm)
+            {
+                vm.Folders.Remove(folderPath);
+            }
+        }
+    }
 }

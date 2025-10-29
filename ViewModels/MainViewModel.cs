@@ -444,6 +444,12 @@ public partial class MainViewModel : ObservableObject
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
 
+                // if there were no files to hash, update progress
+                if (filesToHash.Count == 0)
+                {
+                    UpdateProgressSafely(1, 1, numberOfSteps, 2);
+                }
+
                 // group files by hash
                 var hashGroups = Files
                 .Where(f => f.State == FileEntryViewModel.FileState.hashed)
@@ -549,6 +555,12 @@ public partial class MainViewModel : ObservableObject
                 {
                     file.State = FileEntryViewModel.FileState.unique;
                 }
+
+                // if there were no files to compare, update progress
+                if (totalFilesInHashGroups == 0)
+                {
+                    UpdateProgressSafely(1, 1, numberOfSteps, 3);
+                }
             });
         }
         catch (OperationCanceledException)
@@ -602,7 +614,7 @@ public partial class MainViewModel : ObservableObject
                     cts.Token.ThrowIfCancellationRequested();
                     file.DeleteToRecycleBin();
                     Interlocked.Increment(ref processed);
-                    UpdateProgressSafely(processed, filesToDelete.Count);
+                    UpdateProgressSafely(processed, total);
                 }
                 finally
                 {

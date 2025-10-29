@@ -139,6 +139,9 @@
             <!-- Progress bar -->
             <ProgressBar Width="300" Height="20" Value="{Binding ProgressValue}" Maximum="100"/>
 
+            <!-- ETA -->
+            <TextBlock Text="{Binding EtaText}" VerticalAlignment="Center"/>
+
             <!-- Stats -->
             <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" VerticalAlignment="Center"/>

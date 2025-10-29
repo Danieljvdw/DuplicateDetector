@@ -229,6 +229,11 @@ public partial class MainViewModel : ObservableObject
     // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;
 
+    [ObservableProperty]
+    string etaText = "ETA: idle";
+
+    private DateTime stepStartTime;
+
     public MainViewModel()
     {
         // Configure sorting behavior for file view
@@ -294,6 +299,9 @@ public partial class MainViewModel : ObservableObject
                 // create file entries in parallel
                 ObservableCollection<FileEntryViewModel> tempObservableFiles = new ObservableCollection<FileEntryViewModel>();
 
+                // update step time
+                stepStartTime = DateTime.UtcNow;
+
                 var fileTasks = allFiles.Select(async file =>
                 {
                     await semaphore.WaitAsync(cts.Token);
@@ -338,9 +346,9 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(FilesView));
 
                 await App.Current.Dispatcher.InvokeAsync(() =>
-            {
-                FilesView.Refresh();
-            });
+                {
+                    FilesView.Refresh();
+                });
 
                 // create groups of files with same size
                 var sizeGroups = Files.GroupBy(f => f.Size)
@@ -353,6 +361,9 @@ public partial class MainViewModel : ObservableObject
                                        .SelectMany(g => g);
 
                 processed = 0;
+
+                // update step time
+                stepStartTime = DateTime.UtcNow;
 
                 // Semaphore to limit concurrency
                 fileTasks = uniqueSizeFiles.Select(async file =>
@@ -379,6 +390,9 @@ public partial class MainViewModel : ObservableObject
                 var filesToHash = sizeGroups.SelectMany(g => g).ToList();
 
                 processed = 0;
+
+                // update step time
+                stepStartTime = DateTime.UtcNow;
 
                 // hash all candidate files in parallel
                 // Semaphore to limit concurrency
@@ -410,6 +424,9 @@ public partial class MainViewModel : ObservableObject
 
                 processed = 0;
                 int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
+
+                // update step time
+                stepStartTime = DateTime.UtcNow;
 
                 // compare files within each hash group
                 foreach (var group in hashGroups)
@@ -534,6 +551,9 @@ public partial class MainViewModel : ObservableObject
             int total = filesToDelete.Count;
             int processed = 0;
 
+            // update step time
+            stepStartTime = DateTime.UtcNow;
+
             // Semaphore to limit concurrency
             using var semaphore = new SemaphoreSlim(MaxThreads);
             var deleteTasks = filesToDelete.Select(async file =>
@@ -585,19 +605,45 @@ public partial class MainViewModel : ObservableObject
         UpdateProgressSafely(processed, files, 1, 0);
     }
 
-    private void UpdateProgressSafely(int processed, int files, int numberOfSteps, int step)
+    private void UpdateProgressSafely(int processed, int totalInStep, int numberOfSteps, int currentStep)
     {
-        // compute new value
-        double newValue = ((double)processed / files * 100 / numberOfSteps) + ((double)step / numberOfSteps * 100);
+        // Progress fraction within current step
+        double stepProgress = (double)processed / totalInStep;
 
-        // only update if change is noticeable (e.g., >= 0.1%)
-        if (Math.Abs(newValue - lastProgressValue) >= 0.01)
+        // Overall progress fraction considering step number
+        double overallProgressFraction = ((double)currentStep + stepProgress) / numberOfSteps;
+
+        // Only update if change is noticeable
+        if (Math.Abs(overallProgressFraction - lastProgressValue) >= 0.0001)
         {
             lock (progressLock)
             {
-                lastProgressValue = newValue;
-                App.Current.Dispatcher.InvokeAsync(() => ProgressValue = newValue);
+                lastProgressValue = overallProgressFraction;
+
+                App.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    ProgressValue = overallProgressFraction * 100;
+                });
+
+                UpdateEta(stepProgress);
             }
+        }
+    }
+
+    private void UpdateEta(double stepProgress)
+    {
+        var elapsed = (DateTime.UtcNow - stepStartTime).TotalSeconds;
+
+        if (stepProgress > 0)
+        {
+            double remainingSeconds = elapsed * (1 - stepProgress) / stepProgress;
+
+            TimeSpan eta = TimeSpan.FromSeconds(remainingSeconds);
+            EtaText = $"ETA: {eta.Hours:D2}:{eta.Minutes:D2}:{eta.Seconds:D2}";
+        }
+        else
+        {
+            EtaText = "ETA: calculating...";
         }
     }
 }

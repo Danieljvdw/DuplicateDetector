@@ -12,17 +12,6 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    private void RemoveFolder_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.CommandParameter is FolderEntryViewModel folderPath)
-        {
-            if (DataContext is MainViewModel vm)
-            {
-                vm.Folders.Remove(folderPath);
-            }
-        }
-    }
-
     private void StateCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is Border border &&
@@ -41,11 +30,5 @@ public partial class MainWindow : Window
             // Optional: prevent DataGrid row selection from stealing the click
             e.Handled = true;
         }
-    }
-
-    private void FolderVisibilityChanged(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm)
-            vm.FilesView.Refresh();
     }
 }

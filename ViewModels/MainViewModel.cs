@@ -153,10 +153,17 @@ public partial class FileEntryViewModel : ObservableObject
 
 public partial class FolderEntryViewModel : ObservableObject
 {
+    // Full folder path
     public string Path { get; }
 
+    // Whether this folder is visible in the file list
     [ObservableProperty]
     bool isVisible = true;
+
+    // Per-folder file-state filters 
+    [ObservableProperty] bool showKeep = true;
+    [ObservableProperty] bool showDelete = true;
+    [ObservableProperty] bool showUnique = true;
 
     public FolderEntryViewModel(string path)
     {
@@ -295,31 +302,64 @@ public partial class MainViewModel : ObservableObject
 
     bool FilterByVisibleFolders(object item)
     {
+        // only show FileEntryViewModel items
         if (item is not FileEntryViewModel f)
+        {
             return false;
+        }
 
-        if (Folders.Count == 0)
-            return true;
+        // find the folder this file belongs to
+        var folder = Folders.FirstOrDefault(x => f.Filename.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase));
 
-        var visibleFolders = Folders.Where(x => x.IsVisible).Select(x => x.Path);
-        return visibleFolders.Any(folder =>
-            f.Filename.StartsWith(folder, StringComparison.OrdinalIgnoreCase));
+        // if no folder found or folder is hidden, filter out
+        if (folder == null || !folder.IsVisible)
+        {
+            return false;
+        }
+
+        // apply that folder's filters
+        return f.State switch
+        {
+            FileEntryViewModel.FileState.keep => folder.ShowKeep,
+            FileEntryViewModel.FileState.delete => folder.ShowDelete,
+            FileEntryViewModel.FileState.unique => folder.ShowUnique,
+            _ => true
+        };
     }
 
     // Opens a folder picker and adds a selected folder to scan list
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
     void AddFolder()
     {
+        // configure dialog
         var dialog = new CommonOpenFileDialog()
         {
             IsFolderPicker = true,
             Title = "Select a folder"
         };
+
+        // show dialog
         if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
         {
+            // check that folder is not inside any folder already in the collection, and that no folder in the collection is inside the newly selected folder
+
+
+            // avoid adding duplicates
             if (!Folders.Any(f => f.Path.Equals(dialog.FileName, StringComparison.OrdinalIgnoreCase)))
+            {
                 Folders.Add(new FolderEntryViewModel(dialog.FileName));
+            }
         }
+    }
+
+    [RelayCommand]
+    void RemoveFolder(FolderEntryViewModel folder)
+    {
+        // remove folder from list
+        Folders.Remove(folder);
+
+        // refresh file view
+        FilesView.Refresh();
     }
 
     // Main method to scan all folders and detect duplicates
@@ -417,6 +457,12 @@ public partial class MainViewModel : ObservableObject
                 FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
                 FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
                 FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
+
+                // re-add folders visibility and filtering
+                foreach (var folder in Folders)
+                {
+                    folder.PropertyChanged += (_, __) => FilesView.Refresh();
+                }
 
                 OnPropertyChanged(nameof(FilesView));
 
@@ -849,6 +895,50 @@ public partial class MainViewModel : ObservableObject
         else
         {
             EtaText = "ETA: calculating...";
+        }
+    }
+
+    [ObservableProperty]
+    bool? allVisibleChecked = true;
+    partial void OnAllVisibleCheckedChanged(bool? value)
+    {
+        if (value.HasValue)
+        {
+            foreach (var f in Folders)
+                f.IsVisible = value.Value;
+        }
+    }
+
+    [ObservableProperty]
+    bool? allKeepChecked = true;
+    partial void OnAllKeepCheckedChanged(bool? value)
+    {
+        if (value.HasValue)
+        {
+            foreach (var f in Folders)
+                f.ShowKeep = value.Value;
+        }
+    }
+
+    [ObservableProperty]
+    bool? allDeleteChecked = true;
+    partial void OnAllDeleteCheckedChanged(bool? value)
+    {
+        if (value.HasValue)
+        {
+            foreach (var f in Folders)
+                f.ShowDelete = value.Value;
+        }
+    }
+
+    [ObservableProperty]
+    bool? allUniqueChecked = true;
+    partial void OnAllUniqueCheckedChanged(bool? value)
+    {
+        if (value.HasValue)
+        {
+            foreach (var f in Folders)
+                f.ShowUnique = value.Value;
         }
     }
 }

@@ -94,43 +94,100 @@
 
         <!-- Folder List -->
         <GroupBox Header="Folders to Scan" Grid.Row="1" Grid.Column="1" Grid.RowSpan="2">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <!-- List of currently added folders -->
-                    <ItemsControl ItemsSource="{Binding Folders}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <!-- Folder path -->
-                                        <ColumnDefinition Width="Auto" />
-                                        <!-- Remove button -->
-                                    </Grid.ColumnDefinitions>
+            <DockPanel LastChildFill="True">
+                <!-- Add Folder Button docked to bottom -->
+                <Button DockPanel.Dock="Top"
+                        Content="Add Folder"
+                        Command="{Binding AddFolderCommand}"/>
 
-                                    <!-- Checkbox and path -->
-                                    <CheckBox Grid.Column="0"
-                                      Content="{Binding Path}"
-                                      IsChecked="{Binding IsVisible, Mode=TwoWay}"
-                                      Checked="FolderVisibilityChanged"
-                                      Unchecked="FolderVisibilityChanged"/>
+                <!-- Scrollable List of folders -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ListView ItemsSource="{Binding Folders}">
+                        <ListView.View>
+                            <GridView>
+                                <!-- Folder Path -->
+                                <GridViewColumn Header="Folder Path">
+                                    <GridViewColumn.HeaderContainerStyle>
+                                        <Style TargetType="GridViewColumnHeader">
+                                            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                        </Style>
+                                    </GridViewColumn.HeaderContainerStyle>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Path}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
 
-                                    <!-- Remove button -->
-                                    <Button Grid.Column="1"
-                                    Content="Remove"
-                                    CommandParameter="{Binding}"
-                                    Click="RemoveFolder_Click"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <Button Content="Add Folder" Command="{Binding AddFolderCommand}" Width="120" HorizontalAlignment="Left"/>
-                </StackPanel>
-            </ScrollViewer>
+                                <!-- Visible -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Visible" IsThreeState="True" IsChecked="{Binding AllVisibleChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Keep -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Keep" IsThreeState="True" IsChecked="{Binding AllKeepChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowKeep, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Delete -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Delete" IsThreeState="True" IsChecked="{Binding AllDeleteChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowDelete, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Unique -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Unique" IsThreeState="True" IsChecked="{Binding AllUniqueChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowUnique, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Actions -->
+                                <GridViewColumn Header="Actions">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="Remove"
+                                                    Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </ScrollViewer>
+            </DockPanel>
         </GroupBox>
-        
+
+
         <!-- Files List -->
-        <GroupBox Header="Folders to Scan" Grid.Row="1" Grid.Column="2" Grid.RowSpan="2">
+        <GroupBox Header="Files" Grid.Row="1" Grid.Column="2" Grid.RowSpan="2">
             <DataGrid ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                 <!-- Hide selection highlight colors -->
                 <DataGrid.Resources>

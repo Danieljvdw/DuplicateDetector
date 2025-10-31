@@ -341,15 +341,46 @@ public partial class MainViewModel : ObservableObject
         // show dialog
         if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
         {
-            // check that folder is not inside any folder already in the collection, and that no folder in the collection is inside the newly selected folder
+            // Check that folder is not inside any existing folder
+            if (Folders.Any(f => IsSubfolder(dialog.FileName, f.Path)))
+            {
+                MessageBox.Show("The selected folder is already inside an existing folder in the list.",
+                            "Cannot Add Folder",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                return; // Do not add because it's inside an existing folder
+            }
 
+            // Check that no existing folder is inside the newly selected folder
+            if (Folders.Any(f => IsSubfolder(f.Path, dialog.FileName)))
+            {
+                MessageBox.Show("An existing folder in the list is inside the folder you selected.",
+                           "Cannot Add Folder",
+                           MessageBoxButton.OK,
+                           MessageBoxImage.Warning);
+                return; // Do not add because an existing folder is inside it
+            }
 
             // avoid adding duplicates
-            if (!Folders.Any(f => f.Path.Equals(dialog.FileName, StringComparison.OrdinalIgnoreCase)))
+            if (Folders.Any(f => f.Path.Equals(dialog.FileName, StringComparison.OrdinalIgnoreCase)))
             {
-                Folders.Add(new FolderEntryViewModel(dialog.FileName));
+                MessageBox.Show("The selected folder is already in the list.",
+                          "Cannot Add Folder",
+                          MessageBoxButton.OK,
+                          MessageBoxImage.Information);
+                return;
             }
+
+            Folders.Add(new FolderEntryViewModel(dialog.FileName));
         }
+    }
+
+    bool IsSubfolder(string folderPath, string basePath)
+    {
+        var normalizedFolder = Path.GetFullPath(folderPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar);
+        var normalizedBase = Path.GetFullPath(basePath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar);
+
+        return normalizedFolder.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase);
     }
 
     [RelayCommand]

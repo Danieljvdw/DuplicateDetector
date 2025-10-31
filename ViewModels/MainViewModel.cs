@@ -78,7 +78,7 @@ public partial class FileEntryViewModel : ObservableObject
     }
 
     // Calculates hash of the file using selected algorithm
-    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken token)
+    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken token, ManualResetEventSlim pauseEvent)
     {
         State = FileState.hashing;
 
@@ -108,6 +108,7 @@ public partial class FileEntryViewModel : ObservableObject
                     {
                         // Incrementally compute CRC32 checksum
                         crc32.Append(buffer.AsSpan(0, bytesRead));
+                        pauseEvent.Wait(token);
                         token.ThrowIfCancellationRequested();
                     }
 
@@ -121,6 +122,7 @@ public partial class FileEntryViewModel : ObservableObject
                         while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
                         {
                             md5.TransformBlock(buffer, 0, read, null, 0);
+                            pauseEvent.Wait(token);
                             token.ThrowIfCancellationRequested();
                         }
                         md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
@@ -136,6 +138,7 @@ public partial class FileEntryViewModel : ObservableObject
                         while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
                         {
                             sha256.TransformBlock(buffer, 0, read, null, 0);
+                            pauseEvent.Wait(token);
                             token.ThrowIfCancellationRequested();
                         }
                         sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
@@ -150,6 +153,7 @@ public partial class FileEntryViewModel : ObservableObject
                         while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
                         {
                             sha512.TransformBlock(buffer, 0, read, null, 0);
+                            pauseEvent.Wait(token);
                             token.ThrowIfCancellationRequested();
                         }
                         sha512.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
@@ -312,6 +316,10 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private ManualResetEventSlim pauseEvent = new(true); // starts in "running" state
+    [ObservableProperty]
+    bool isPaused;
+
     partial void OnIsBusyChanged(bool value)
     {
         ScanCommand.NotifyCanExecuteChanged();
@@ -319,7 +327,19 @@ public partial class MainViewModel : ObservableObject
         CopyFilesCommand.NotifyCanExecuteChanged();
         AddFolderCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
+        PauseCommand.NotifyCanExecuteChanged();
+        ResumeCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        PauseCommand.NotifyCanExecuteChanged();
+        ResumeCommand.NotifyCanExecuteChanged();
+    }
+
+    bool CanPause => IsBusy && !IsPaused;
+    bool CanResume => IsBusy && IsPaused;
+
 
     // For cancelling asynchronous operations
     private CancellationTokenSource? cts = null;
@@ -465,6 +485,7 @@ public partial class MainViewModel : ObservableObject
                 var allFiles = new List<FileInfo>();
                 foreach (var folder in Folders)
                 {
+                    pauseEvent.Wait(cts.Token);
                     cts.Token.ThrowIfCancellationRequested();
                     var dirInfo = new DirectoryInfo(folder.Path);
                     var options = new EnumerationOptions()
@@ -491,6 +512,7 @@ public partial class MainViewModel : ObservableObject
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
+                        pauseEvent.Wait(cts.Token);
                         cts.Token.ThrowIfCancellationRequested();
                         var newFile = new FileEntryViewModel(file);
                         newFile.OnStateChanged = () =>
@@ -565,6 +587,7 @@ public partial class MainViewModel : ObservableObject
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
+                        pauseEvent.Wait(cts.Token);
                         cts.Token.ThrowIfCancellationRequested();
                         file.State = FileEntryViewModel.FileState.unique;
 
@@ -595,8 +618,9 @@ public partial class MainViewModel : ObservableObject
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
+                        pauseEvent.Wait(cts.Token);
                         cts.Token.ThrowIfCancellationRequested();
-                        await file.HashAsync(SelectedAlgorithm, cts.Token); // your existing sync hash method
+                        await file.HashAsync(SelectedAlgorithm, cts.Token, pauseEvent); // your existing sync hash method
                         Interlocked.Increment(ref processed);
                         UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 2);
                     }
@@ -747,6 +771,8 @@ public partial class MainViewModel : ObservableObject
     void Cancel()
     {
         cts?.Cancel();
+        IsPaused = false;
+        pauseEvent.Set(); // ensure unpaused state for next run
     }
 
     // Deletes all files marked for deletion (moves to recycle bin)
@@ -779,6 +805,7 @@ public partial class MainViewModel : ObservableObject
                 await semaphore.WaitAsync(cts.Token);
                 try
                 {
+                    pauseEvent.Wait(cts.Token);
                     cts.Token.ThrowIfCancellationRequested();
                     file.DeleteToRecycleBin();
                     Interlocked.Increment(ref processed);
@@ -855,6 +882,7 @@ public partial class MainViewModel : ObservableObject
                 await semaphore.WaitAsync(cts.Token);
                 try
                 {
+                    pauseEvent.Wait(cts.Token);
                     cts.Token.ThrowIfCancellationRequested();
 
                     // Find which root folder this file came from
@@ -1014,4 +1042,27 @@ public partial class MainViewModel : ObservableObject
                 f.ShowUnique = value.Value;
         }
     }
+
+    [RelayCommand(CanExecute = nameof(CanPause))]
+    void Pause()
+    {
+        if (!IsPaused)
+        {
+            IsPaused = true;
+            pauseEvent.Reset(); // causes all worker loops to wait
+            EtaText = "Paused";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanResume))]
+    void Resume()
+    {
+        if (IsPaused)
+        {
+            IsPaused = false;
+            pauseEvent.Set(); // releases all waiting threads
+            stepStartTime = DateTime.UtcNow; // restart ETA timing
+        }
+    }
+
 }

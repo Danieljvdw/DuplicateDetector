@@ -40,6 +40,8 @@
         <!-- control -->
         <GroupBox Header="Control" Grid.Row="1">
             <StackPanel>
+                <Button Content="Pause" Command="{Binding PauseCommand}"/>
+                <Button Content="Resume" Command="{Binding ResumeCommand}"/>
                 <Button Content="Cancel" Command="{Binding CancelCommand}"/>
                 <Button Content="Scan" Command="{Binding ScanCommand}"/>
                 <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}"/>

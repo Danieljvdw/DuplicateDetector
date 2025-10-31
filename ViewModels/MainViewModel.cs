@@ -106,7 +106,7 @@ public partial class FileEntryViewModel : ObservableObject
                     int bytesRead;
                     while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
                     {
-                    	// Incrementally compute CRC32 checksum
+                        // Incrementally compute CRC32 checksum
                         crc32.Append(buffer.AsSpan(0, bytesRead));
                         token.ThrowIfCancellationRequested();
                     }
@@ -131,7 +131,7 @@ public partial class FileEntryViewModel : ObservableObject
                 case MainViewModel.CompareAlgorithm.SHA256:
                     using (var sha256 = SHA256.Create())
                     {
-                    	
+
                         int read;
                         while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
                         {
@@ -467,7 +467,13 @@ public partial class MainViewModel : ObservableObject
                 {
                     cts.Token.ThrowIfCancellationRequested();
                     var dirInfo = new DirectoryInfo(folder.Path);
-                    allFiles.AddRange(dirInfo.GetFiles("*", System.IO.SearchOption.AllDirectories));
+                    var options = new EnumerationOptions()
+                    {
+                        IgnoreInaccessible = true,
+                        RecurseSubdirectories = true,
+                        AttributesToSkip = FileAttributes.System
+                    };
+                    allFiles.AddRange(dirInfo.GetFiles("*", options));
                 }
 
                 // total files to process

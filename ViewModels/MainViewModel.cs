@@ -78,13 +78,22 @@ public partial class FileEntryViewModel : ObservableObject
     }
 
     // Calculates hash of the file using selected algorithm
-    public void Hash(MainViewModel.CompareAlgorithm compareAlgorithm)
+    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken token)
     {
         State = FileState.hashing;
 
         try
         {
-            using var stream = File.OpenRead(Filename); // or FilePath if you store that instead
+            // 1 MB buffer for efficient SSD reads
+            byte[] buffer = new byte[1024 * 1024];
+
+            await using var stream = new FileStream(
+                Filename,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: buffer.Length,
+                useAsync: true);
 
             byte[] hashBytes;
 
@@ -94,13 +103,12 @@ public partial class FileEntryViewModel : ObservableObject
                 case MainViewModel.CompareAlgorithm.Crc32:
                 case MainViewModel.CompareAlgorithm.Crc32PlusFullCompare:
                     var crc32 = new System.IO.Hashing.Crc32();
-                    byte[] buffer = new byte[8192];
                     int bytesRead;
-
-                    // Incrementally compute CRC32 checksum
-                    while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                    while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
                     {
+                    	// Incrementally compute CRC32 checksum
                         crc32.Append(buffer.AsSpan(0, bytesRead));
+                        token.ThrowIfCancellationRequested();
                     }
 
                     hashBytes = crc32.GetCurrentHash();
@@ -109,21 +117,43 @@ public partial class FileEntryViewModel : ObservableObject
                 case MainViewModel.CompareAlgorithm.MD5:
                     using (var md5 = MD5.Create())
                     {
-                        hashBytes = md5.ComputeHash(stream);
+                        int read;
+                        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
+                        {
+                            md5.TransformBlock(buffer, 0, read, null, 0);
+                            token.ThrowIfCancellationRequested();
+                        }
+                        md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                        hashBytes = md5.Hash!;
                     }
                     break;
 
                 case MainViewModel.CompareAlgorithm.SHA256:
                     using (var sha256 = SHA256.Create())
                     {
-                        hashBytes = sha256.ComputeHash(stream);
+                    	
+                        int read;
+                        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
+                        {
+                            sha256.TransformBlock(buffer, 0, read, null, 0);
+                            token.ThrowIfCancellationRequested();
+                        }
+                        sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                        hashBytes = sha256.Hash!;
                     }
                     break;
 
                 case MainViewModel.CompareAlgorithm.SHA512:
                     using (var sha512 = SHA512.Create())
                     {
-                        hashBytes = sha512.ComputeHash(stream);
+                        int read;
+                        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
+                        {
+                            sha512.TransformBlock(buffer, 0, read, null, 0);
+                            token.ThrowIfCancellationRequested();
+                        }
+                        sha512.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                        hashBytes = sha512.Hash!;
                     }
                     break;
 
@@ -135,12 +165,18 @@ public partial class FileEntryViewModel : ObservableObject
             HashString = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
             State = FileState.hashed;
         }
+        catch (OperationCanceledException)
+        {
+            // allow cancellation to propagate silently
+            State = FileState.idle;
+            throw;
+        }
         catch
         {
-            // Handle I/O or permission errors
             State = FileState.error;
         }
     }
+
 
     // Moves the file to the recycle bin and updates state
     public void DeleteToRecycleBin()
@@ -238,7 +274,7 @@ public partial class MainViewModel : ObservableObject
 
     // Max degree of parallelism
     [ObservableProperty]
-    int maxThreads = Environment.ProcessorCount * 2;
+    int maxThreads = Environment.ProcessorCount * 8;
 
     // Total bytes scanned
     public long TotalData => Files.Sum(f => f.Size);
@@ -554,7 +590,7 @@ public partial class MainViewModel : ObservableObject
                     try
                     {
                         cts.Token.ThrowIfCancellationRequested();
-                        file.Hash(SelectedAlgorithm); // your existing sync hash method
+                        await file.HashAsync(SelectedAlgorithm, cts.Token); // your existing sync hash method
                         Interlocked.Increment(ref processed);
                         UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 2);
                     }

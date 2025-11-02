@@ -66,10 +66,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     bool isBusy;
 
+    private DateTime operationStarted = DateTime.UtcNow;
+    [ObservableProperty]
+    string runtimeText = "Run Time: 00:00:00";
+
     // whether the buttons can be used
     public bool CanRunOperations => !IsBusy;
     public bool CanCancel => IsBusy;
-
 
     // Optional filter to display only certain file states
     [ObservableProperty]
@@ -254,6 +257,9 @@ public partial class MainViewModel : ObservableObject
     {
         // set busy state
         IsBusy = true;
+
+        // record operation start time
+        operationStarted = DateTime.UtcNow;
 
         // clear previous results
         await App.Current.Dispatcher.InvokeAsync(() =>
@@ -581,6 +587,9 @@ public partial class MainViewModel : ObservableObject
         // set busy state
         IsBusy = true;
 
+        // record operation start time
+        operationStarted = DateTime.UtcNow;
+
         await Task.Run(async () =>
         {
             // setup cancellation token
@@ -632,6 +641,9 @@ public partial class MainViewModel : ObservableObject
     {
         // set busy state
         IsBusy = true;
+
+        // record operation start time
+        operationStarted = DateTime.UtcNow;
 
         // setup cancellation token
         cts = new CancellationTokenSource();
@@ -785,6 +797,7 @@ public partial class MainViewModel : ObservableObject
     {
         var elapsed = (DateTime.UtcNow - stepStartTime).TotalSeconds;
 
+        // calculate ETA based on step progress
         if (stepProgress > 0)
         {
             double remainingSeconds = elapsed * (1 - stepProgress) / stepProgress;
@@ -796,6 +809,18 @@ public partial class MainViewModel : ObservableObject
         {
             EtaText = "ETA: calculating...";
         }
+
+        // update runtime every time eta is updated
+        TimeSpan runTime = DateTime.UtcNow - operationStarted;
+        if (runTime.TotalDays >= 1)
+        {
+            RuntimeText = $"Run Time: {runTime.Days}d {runTime.Hours:D2}:{runTime.Minutes:D2}:{runTime.Seconds:D2}";
+        }
+        else
+        {
+            RuntimeText = $"Run Time: {runTime.Hours:D2}:{runTime.Minutes:D2}:{runTime.Seconds:D2}";
+        }
+
     }
 
     [ObservableProperty]

@@ -71,6 +71,9 @@
                 <!-- ETA -->
                 <TextBlock Text="{Binding EtaText}"/>
 
+                <!-- Runtime -->
+                <TextBlock Text="{Binding RuntimeText}"/>
+
                 <!-- Stats -->
                 <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}"/>
                 <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" Background="LightBlue"/>

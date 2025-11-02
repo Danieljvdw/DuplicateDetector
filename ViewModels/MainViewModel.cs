@@ -13,6 +13,11 @@ namespace DuplicateDetector.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
+
+    //============================================================
+    // 🧩 ENUMS & STATIC MEMBERS
+    //============================================================
+
     // Supported hashing / comparison algorithms
     public enum CompareAlgorithm
     {
@@ -35,78 +40,83 @@ public partial class MainViewModel : ObservableObject
     // Expose list of algorithms for UI binding
     public static Array CompareAlgorithms => Enum.GetValues(typeof(CompareAlgorithm));
 
+    //============================================================
+    // 📦 FOLDER & FILE DATA
+    //============================================================
+
     // List of selected folder paths
-    [ObservableProperty]
-    ObservableCollection<FolderEntryViewModel> folders = new();
+    [ObservableProperty] ObservableCollection<FolderEntryViewModel> folders = new();
 
     // Collection of all scanned file entries
-    [ObservableProperty]
-    ObservableCollection<FileEntryViewModel> files = new();
+    [ObservableProperty] ObservableCollection<FileEntryViewModel> files = new();
 
     // CollectionView for sorting, grouping, and filtering
     public ICollectionView FilesView { get; set; }
 
-#if false // want to enable storing hashes in file for low RAM usage
-    [ObservableProperty]
-    bool useHashFile;
-#endif
+    //============================================================
+    // ⚙️ APP SETTINGS & PARAMETERS
+    //============================================================
 
     // Currently selected hashing algorithm
-    [ObservableProperty]
-    CompareAlgorithm selectedAlgorithm = CompareAlgorithm.MD5;
+    [ObservableProperty] CompareAlgorithm selectedAlgorithm = CompareAlgorithm.MD5;
 
-    // Progress bar value (0–100%)
-    [ObservableProperty]
-    double progressValue;
-
-    private double lastProgressValue = 0;
-    private readonly object progressLock = new();
-
-    // Whether a process is currently running
-    [ObservableProperty]
-    bool isBusy;
-
-    private DateTime operationStarted = DateTime.UtcNow;
-    [ObservableProperty]
-    string runtimeText = "Run Time: 00:00:00";
-
-    // whether the buttons can be used
-    public bool CanRunOperations => !IsBusy;
-    public bool CanCancel => IsBusy;
+#if false // want to enable storing hashes in file for low RAM usage
+    [ObservableProperty] bool useHashFile;
+#endif
 
     // Optional filter to display only certain file states
-    [ObservableProperty]
-    FileEntryViewModel.FileState? fileStateFilter = null;
+    [ObservableProperty] FileEntryViewModel.FileState? fileStateFilter = null;
 
     // Max degree of parallelism
-    [ObservableProperty]
-    int maxThreads = Environment.ProcessorCount * 8;
+    [ObservableProperty] int maxThreads = Environment.ProcessorCount * 8;
 
-    // Total bytes scanned
-    public long TotalData => Files.Sum(f => f.Size);
+    //============================================================
+    // 🔄 STATE & PROGRESS
+    //============================================================
 
-    // Bytes belonging to unique (non-duplicate) files
-    public long UniqueData => Files.Where(f => f.State == FileEntryViewModel.FileState.unique).Sum(f => f.Size);
 
-    // Bytes that would be freed by deleting duplicates
-    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete).Sum(f => f.Size);
+    [ObservableProperty] bool isBusy = false; // Whether a process is currently running
+    [ObservableProperty] bool isPaused = true; // Whether the current operation is paused
+    [ObservableProperty] double progressValue = 0.0d; // Progress bar value (0–100%)
+    [ObservableProperty] string etaText = "ETA: idle";
+    [ObservableProperty] string runtimeText = "Run Time: 00:00:00";
 
-    // Bytes marked to keep (including unique + manually kept files)
-    public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size);
+    private double lastProgressValue = 0; // to throttle progress updates
+    private readonly object progressLock = new(); // lock for progress updates
+    private DateTime operationStarted = DateTime.UtcNow; // time when current operation started
+    private DateTime stepStartTime; // time when current step started
+    private ManualResetEventSlim pauseEvent = new(true); // for pausing operations
+    private CancellationTokenSource? cts = null; // For cancelling asynchronous operations
 
-    // Bytes that will remain after deleting files marked for deletion
-    public long TotalAfterDelete => TotalData - DeleteData;
+    private bool CanRunOperations => !IsBusy; // Whether operations can be started
+    private bool CanCancel => IsBusy; // Whether current operation can be cancelled
+    private bool CanPause => IsBusy && !IsPaused; // Whether current operation can be paused
+    private bool CanResume => IsBusy && IsPaused; // Whether current operation can be resumed
+
+    //============================================================
+    // 🧮 STATISTICS
+    //============================================================
+
+    public long TotalData => Files.Sum(f => f.Size); // Total bytes of all files
+    public long UniqueData => Files.Where(f => f.State == FileEntryViewModel.FileState.unique).Sum(f => f.Size); // Total bytes of all unique files
+    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete).Sum(f => f.Size); // Bytes that would be freed by deleting duplicates
+    public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size); // Bytes marked to keep (including unique + manually kept files)
+    public long TotalAfterDelete => TotalData - DeleteData; // Bytes that will remain after deleting files marked for deletion
 
     // for stacked chart displaying percentages
     public double KeepPercentage => TotalData > 0 ? (double)KeepData / TotalData : 0;
     public double DeletePercentage => TotalData > 0 ? (double)DeleteData / TotalData : 0;
     public double UniquePercentage => TotalData > 0 ? (double)UniqueData / TotalData : 0;
 
-    // application version
+    //============================================================
+    // 🧱 VERSION INFO
+    //============================================================
+
     public string Version
     {
         get
         {
+            // get version from assembly info
             var version = Assembly.GetExecutingAssembly().GetName().Version;
             if (version == null)
             {
@@ -118,38 +128,9 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private ManualResetEventSlim pauseEvent = new(true); // starts in "running" state
-    [ObservableProperty]
-    bool isPaused;
-
-    partial void OnIsBusyChanged(bool value)
-    {
-        ScanCommand.NotifyCanExecuteChanged();
-        DeleteSelectedCommand.NotifyCanExecuteChanged();
-        CopyFilesCommand.NotifyCanExecuteChanged();
-        AddFolderCommand.NotifyCanExecuteChanged();
-        CancelCommand.NotifyCanExecuteChanged();
-        PauseCommand.NotifyCanExecuteChanged();
-        ResumeCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnIsPausedChanged(bool value)
-    {
-        PauseCommand.NotifyCanExecuteChanged();
-        ResumeCommand.NotifyCanExecuteChanged();
-    }
-
-    bool CanPause => IsBusy && !IsPaused;
-    bool CanResume => IsBusy && IsPaused;
-
-
-    // For cancelling asynchronous operations
-    private CancellationTokenSource? cts = null;
-
-    [ObservableProperty]
-    string etaText = "ETA: idle";
-
-    private DateTime stepStartTime;
+    //============================================================
+    // 🧠 CONSTRUCTOR & INITIALIZATION
+    //============================================================
 
     public MainViewModel()
     {
@@ -158,32 +139,9 @@ public partial class MainViewModel : ObservableObject
         FilesView = cvs.View;
     }
 
-    bool FilterByVisibleFolders(object item)
-    {
-        // only show FileEntryViewModel items
-        if (item is not FileEntryViewModel f)
-        {
-            return false;
-        }
-
-        // find the folder this file belongs to
-        var folder = Folders.FirstOrDefault(x => f.Filename.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase));
-
-        // if no folder found or folder is hidden, filter out
-        if (folder == null || !folder.IsVisible)
-        {
-            return false;
-        }
-
-        // apply that folder's filters
-        return f.State switch
-        {
-            FileEntryViewModel.FileState.keep => folder.ShowKeep,
-            FileEntryViewModel.FileState.delete => folder.ShowDelete,
-            FileEntryViewModel.FileState.unique => folder.ShowUnique,
-            _ => true
-        };
-    }
+    //============================================================
+    // 🧩 COMMANDS — FOLDER MANAGEMENT
+    //============================================================
 
     // Opens a folder picker and adds a selected folder to scan list
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
@@ -233,14 +191,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    bool IsSubfolder(string folderPath, string basePath)
-    {
-        var normalizedFolder = Path.GetFullPath(folderPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar);
-        var normalizedBase = Path.GetFullPath(basePath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar);
-
-        return normalizedFolder.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase);
-    }
-
     [RelayCommand]
     void RemoveFolder(FolderEntryViewModel folder)
     {
@@ -250,6 +200,20 @@ public partial class MainViewModel : ObservableObject
         // refresh file view
         FilesView.Refresh();
     }
+
+    bool IsSubfolder(string folderPath, string basePath)
+    {
+        // Normalize paths to ensure consistent comparison
+        var normalizedFolder = Path.GetFullPath(folderPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar);
+        var normalizedBase = Path.GetFullPath(basePath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar);
+
+        // Check if folderPath starts with basePath
+        return normalizedFolder.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase);
+    }
+
+    //============================================================
+    // 🔍 COMMANDS — SCANNING
+    //============================================================
 
     // Main method to scan all folders and detect duplicates
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
@@ -571,14 +535,40 @@ public partial class MainViewModel : ObservableObject
         IsBusy = false;
     }
 
-    // Cancels current scan or delete task
-    [RelayCommand(CanExecute = nameof(CanCancel))]
-    void Cancel()
+    // Byte-by-byte comparison for final verification
+    private bool AreFilesIdentical(string file1, string file2)
     {
-        cts?.Cancel();
-        IsPaused = false;
-        pauseEvent.Set(); // ensure unpaused state for next run
+        // quick length check
+        using var fs1 = File.OpenRead(file1);
+        using var fs2 = File.OpenRead(file2);
+
+        if (fs1.Length != fs2.Length)
+        {
+            return false;
+        }
+
+        // byte-by-byte comparison
+        int b1, b2;
+        do
+        {
+            b1 = fs1.ReadByte();
+            b2 = fs2.ReadByte();
+
+            // if bytes differ, files are not identical
+            if (b1 != b2)
+            {
+                return false;
+            }
+
+            // continue until end of file
+        } while (b1 != -1);
+
+        return true;
     }
+
+    //============================================================
+    // 🗑️ COMMANDS — DELETE & COPY
+    //============================================================
 
     // Deletes all files marked for deletion (moves to recycle bin)
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
@@ -743,24 +733,44 @@ public partial class MainViewModel : ObservableObject
         IsBusy = false;
     }
 
-    // Byte-by-byte comparison for final verification
-    private bool AreFilesIdentical(string file1, string file2)
+    //============================================================
+    // ⏱️ COMMANDS — PAUSE / RESUME / CANCEL
+    //============================================================
+
+    // Cancels current scan or delete task
+    [RelayCommand(CanExecute = nameof(CanCancel))]
+    void Cancel()
     {
-        using var fs1 = File.OpenRead(file1);
-        using var fs2 = File.OpenRead(file2);
-
-        if (fs1.Length != fs2.Length) return false;
-
-        int b1, b2;
-        do
-        {
-            b1 = fs1.ReadByte();
-            b2 = fs2.ReadByte();
-            if (b1 != b2) return false;
-        } while (b1 != -1);
-
-        return true;
+        cts?.Cancel();
+        IsPaused = false;
+        pauseEvent.Set(); // ensure unpaused state for next run
     }
+
+    [RelayCommand(CanExecute = nameof(CanPause))]
+    void Pause()
+    {
+        if (!IsPaused)
+        {
+            IsPaused = true;
+            pauseEvent.Reset(); // causes all worker loops to wait
+            EtaText = "Paused";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanResume))]
+    void Resume()
+    {
+        if (IsPaused)
+        {
+            IsPaused = false;
+            pauseEvent.Set(); // releases all waiting threads
+            stepStartTime = DateTime.UtcNow; // restart ETA timing
+        }
+    }
+
+    //============================================================
+    // 📊 PROGRESS & ETA UPDATES
+    //============================================================
 
     // Safely updates UI progress with throttling to avoid lag
     private void UpdateProgressSafely(int processed, int files)
@@ -823,8 +833,11 @@ public partial class MainViewModel : ObservableObject
 
     }
 
-    [ObservableProperty]
-    bool? allVisibleChecked = true;
+    //============================================================
+    // 🪟 UI TOGGLES & FILTERS
+    //============================================================
+
+    [ObservableProperty] bool? allVisibleChecked = true;
     partial void OnAllVisibleCheckedChanged(bool? value)
     {
         if (value.HasValue)
@@ -834,8 +847,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [ObservableProperty]
-    bool? allKeepChecked = true;
+    [ObservableProperty] bool? allKeepChecked = true;
     partial void OnAllKeepCheckedChanged(bool? value)
     {
         if (value.HasValue)
@@ -845,8 +857,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [ObservableProperty]
-    bool? allDeleteChecked = true;
+    [ObservableProperty] bool? allDeleteChecked = true;
     partial void OnAllDeleteCheckedChanged(bool? value)
     {
         if (value.HasValue)
@@ -856,8 +867,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [ObservableProperty]
-    bool? allUniqueChecked = true;
+    [ObservableProperty] bool? allUniqueChecked = true;
     partial void OnAllUniqueCheckedChanged(bool? value)
     {
         if (value.HasValue)
@@ -867,26 +877,51 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanPause))]
-    void Pause()
+    //============================================================
+    // 🪄 EVENT HANDLERS & HELPERS
+    //============================================================
+
+    partial void OnIsBusyChanged(bool value)
     {
-        if (!IsPaused)
-        {
-            IsPaused = true;
-            pauseEvent.Reset(); // causes all worker loops to wait
-            EtaText = "Paused";
-        }
+        ScanCommand.NotifyCanExecuteChanged();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+        CopyFilesCommand.NotifyCanExecuteChanged();
+        AddFolderCommand.NotifyCanExecuteChanged();
+        CancelCommand.NotifyCanExecuteChanged();
+        PauseCommand.NotifyCanExecuteChanged();
+        ResumeCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanResume))]
-    void Resume()
+    partial void OnIsPausedChanged(bool value)
     {
-        if (IsPaused)
-        {
-            IsPaused = false;
-            pauseEvent.Set(); // releases all waiting threads
-            stepStartTime = DateTime.UtcNow; // restart ETA timing
-        }
+        PauseCommand.NotifyCanExecuteChanged();
+        ResumeCommand.NotifyCanExecuteChanged();
     }
 
+    bool FilterByVisibleFolders(object item)
+    {
+        // only show FileEntryViewModel items
+        if (item is not FileEntryViewModel f)
+        {
+            return false;
+        }
+
+        // find the folder this file belongs to
+        var folder = Folders.FirstOrDefault(x => f.Filename.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase));
+
+        // if no folder found or folder is hidden, filter out
+        if (folder == null || !folder.IsVisible)
+        {
+            return false;
+        }
+
+        // apply that folder's filters
+        return f.State switch
+        {
+            FileEntryViewModel.FileState.keep => folder.ShowKeep,
+            FileEntryViewModel.FileState.delete => folder.ShowDelete,
+            FileEntryViewModel.FileState.unique => folder.ShowUnique,
+            _ => true
+        };
+    }
 }

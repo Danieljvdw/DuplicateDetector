@@ -74,9 +74,17 @@ public partial class MainViewModel : ObservableObject
     // 🔄 STATE & PROGRESS
     //============================================================
 
+    public enum OperationState
+    {
+        Idle,
+        Running,
+        Paused,
+        Cancelled,
+        Completed,
+        Error
+    }
 
-    [ObservableProperty] bool isBusy = false; // Whether a process is currently running
-    [ObservableProperty] bool isPaused = true; // Whether the current operation is paused
+    [ObservableProperty] OperationState currentState = OperationState.Idle; // Current operation state
     [ObservableProperty] double progressValue = 0.0d; // Progress bar value (0–100%)
     [ObservableProperty] string etaText = "ETA: idle";
     [ObservableProperty] string runtimeText = "Run Time: 00:00:00";
@@ -88,10 +96,10 @@ public partial class MainViewModel : ObservableObject
     private ManualResetEventSlim pauseEvent = new(true); // for pausing operations
     private CancellationTokenSource? cts = null; // For cancelling asynchronous operations
 
-    private bool CanRunOperations => !IsBusy; // Whether operations can be started
-    private bool CanCancel => IsBusy; // Whether current operation can be cancelled
-    private bool CanPause => IsBusy && !IsPaused; // Whether current operation can be paused
-    private bool CanResume => IsBusy && IsPaused; // Whether current operation can be resumed
+    private bool CanRunOperations => CurrentState == OperationState.Idle || CurrentState == OperationState.Completed || CurrentState == OperationState.Error; // Whether operations can be started
+    private bool CanCancel => CurrentState == OperationState.Running || CurrentState == OperationState.Paused; // Whether current operation can be cancelled
+    private bool CanPause => CurrentState == OperationState.Running; // Whether current operation can be paused
+    private bool CanResume => CurrentState == OperationState.Paused; // Whether current operation can be resumed
 
     //============================================================
     // 🧮 STATISTICS
@@ -219,26 +227,19 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task ScanAsync()
     {
-        // set busy state
-        IsBusy = true;
-
-        // record operation start time
-        operationStarted = DateTime.UtcNow;
-
-        // clear previous results
-        await App.Current.Dispatcher.InvokeAsync(() =>
-        {
-            Files = new ObservableCollection<FileEntryViewModel>();
-            var cvs = new CollectionViewSource { Source = Files };
-            FilesView = cvs.View;
-            FilesView.Refresh();
-        });
-
-        // setup cancellation token
-        cts = new CancellationTokenSource();
+        StartOperation();
 
         try
         {
+            // clear previous results
+            await App.Current.Dispatcher.InvokeAsync(() =>
+            {
+                Files = new ObservableCollection<FileEntryViewModel>();
+                var cvs = new CollectionViewSource { Source = Files };
+                FilesView = cvs.View;
+                FilesView.Refresh();
+            });
+
             await Task.Run(async () =>
             {
                 // reset progress
@@ -523,16 +524,19 @@ public partial class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            // canceled
+            EndOperation(OperationState.Cancelled);
+        }
+        catch
+        {
+            EndOperation(OperationState.Error);
         }
         finally
         {
-            // clear cancellation token
-            cts = null;
+            if (CurrentState == OperationState.Running)
+            {
+                EndOperation();
+            }
         }
-
-        // clear busy state
-        IsBusy = false;
     }
 
     // Byte-by-byte comparison for final verification
@@ -574,184 +578,212 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task DeleteSelectedAsync()
     {
-        // set busy state
-        IsBusy = true;
+        StartOperation();
 
-        // record operation start time
-        operationStarted = DateTime.UtcNow;
-
-        await Task.Run(async () =>
+        try
         {
-            // setup cancellation token
-            cts = new CancellationTokenSource();
-
-            // reset progress
-            ProgressValue = 0;
-
-            // get files to delete
-            var filesToDelete = Files.Where(f => f.State == FileEntryViewModel.FileState.delete).ToList();
-            int total = filesToDelete.Count;
-            int processed = 0;
-
-            // update step time
-            stepStartTime = DateTime.UtcNow;
-
-            // Semaphore to limit concurrency
-            using var semaphore = new SemaphoreSlim(MaxThreads);
-            var deleteTasks = filesToDelete.Select(async file =>
+            await Task.Run(async () =>
             {
-                await semaphore.WaitAsync(cts.Token);
-                try
+                // setup cancellation token
+                cts = new CancellationTokenSource();
+
+                // reset progress
+                ProgressValue = 0;
+
+                // get files to delete
+                var filesToDelete = Files.Where(f => f.State == FileEntryViewModel.FileState.delete).ToList();
+                int total = filesToDelete.Count;
+                int processed = 0;
+
+                // update step time
+                stepStartTime = DateTime.UtcNow;
+
+                // Semaphore to limit concurrency
+                using var semaphore = new SemaphoreSlim(MaxThreads);
+                var deleteTasks = filesToDelete.Select(async file =>
                 {
-                    pauseEvent.Wait(cts.Token);
-                    cts.Token.ThrowIfCancellationRequested();
-                    file.DeleteToRecycleBin();
-                    Interlocked.Increment(ref processed);
-                    UpdateProgressSafely(processed, total);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
+                    await semaphore.WaitAsync(cts.Token);
+                    try
+                    {
+                        pauseEvent.Wait(cts.Token);
+                        cts.Token.ThrowIfCancellationRequested();
+                        file.DeleteToRecycleBin();
+                        Interlocked.Increment(ref processed);
+                        UpdateProgressSafely(processed, total);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                // wait for all deletions to complete
+                await Task.WhenAll(deleteTasks);
             });
-
-            // wait for all deletions to complete
-            await Task.WhenAll(deleteTasks);
-
-            // clear cancellation token
-            cts = null;
-        });
-
-        // clear busy state
-        IsBusy = false;
+        }
+        catch (OperationCanceledException)
+        {
+            EndOperation(OperationState.Cancelled);
+        }
+        catch
+        {
+            EndOperation(OperationState.Error);
+        }
+        finally
+        {
+            if (CurrentState == OperationState.Running)
+            {
+                EndOperation();
+            }
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task CopyFilesAsync()
     {
-        // set busy state
-        IsBusy = true;
+        StartOperation();
 
-        // record operation start time
-        operationStarted = DateTime.UtcNow;
-
-        // setup cancellation token
-        cts = new CancellationTokenSource();
-
-        // reset progress
-        ProgressValue = 0;
-
-        var dialog = new CommonOpenFileDialog()
+        try
         {
-            IsFolderPicker = true,
-            Title = "Select destination folder"
-        };
-        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
-        {
-            return;
-        }
-
-        string destRoot = dialog.FileName;
-
-        // keep track of copied and failed files
-        int copied = 0;
-        int failed = 0;
-
-        // Capture visible files
-        var visibleFiles = FilesView.Cast<FileEntryViewModel>().ToList();
-        if (visibleFiles.Count == 0)
-        {
-            MessageBox.Show("No visible files to copy.");
-            return;
-        }
-
-        await Task.Run(async () =>
-        {
-            // Build a lookup of folder roots for relative paths
-            var folderRoots = Folders.Select(f => f.Path).ToList();
-
-            int total = visibleFiles.Count;
-            int processed = 0;
-
-            // update step time
-            stepStartTime = DateTime.UtcNow;
-
-            // Semaphore to limit concurrency
-            using var semaphore = new SemaphoreSlim(MaxThreads);
-            var copyTasks = visibleFiles.Select(async file =>
+            var dialog = new CommonOpenFileDialog()
             {
-                await semaphore.WaitAsync(cts.Token);
-                try
+                IsFolderPicker = true,
+                Title = "Select destination folder"
+            };
+            if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+            {
+                return;
+            }
+
+            string destRoot = dialog.FileName;
+
+            // keep track of copied and failed files
+            int copied = 0;
+            int failed = 0;
+
+            // Capture visible files
+            var visibleFiles = FilesView.Cast<FileEntryViewModel>().ToList();
+            if (visibleFiles.Count == 0)
+            {
+                MessageBox.Show("No visible files to copy.");
+                return;
+            }
+
+            await Task.Run(async () =>
+            {
+                // Build a lookup of folder roots for relative paths
+                var folderRoots = Folders.Select(f => f.Path).ToList();
+
+                int total = visibleFiles.Count;
+                int processed = 0;
+
+                // update step time
+                stepStartTime = DateTime.UtcNow;
+
+                // Semaphore to limit concurrency
+                using var semaphore = new SemaphoreSlim(MaxThreads);
+                var copyTasks = visibleFiles.Select(async file =>
                 {
-                    pauseEvent.Wait(cts.Token);
-                    cts.Token.ThrowIfCancellationRequested();
-
-                    // Find which root folder this file came from
-                    string? root = folderRoots.FirstOrDefault(r =>
-                        file.Filename.StartsWith(r, StringComparison.OrdinalIgnoreCase));
-                    if (root == null)
-                    {
-                        return;
-                    }
-
-                    string relativePath = Path.GetRelativePath(root, file.Filename);
-                    string targetDir = Path.Combine(destRoot, Path.GetFileName(root), Path.GetDirectoryName(relativePath) ?? "");
-                    string targetFile = Path.Combine(targetDir, Path.GetFileName(file.Filename));
-
+                    await semaphore.WaitAsync(cts.Token);
                     try
                     {
-                        Directory.CreateDirectory(targetDir);
-                        File.Copy(file.Filename, targetFile, overwrite: true);
-                        Interlocked.Increment(ref copied);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Failed to copy {file.Filename}: {ex.Message}");
-                        Interlocked.Increment(ref failed);
-                    }
+                        pauseEvent.Wait(cts.Token);
+                        cts.Token.ThrowIfCancellationRequested();
 
-                    Interlocked.Increment(ref processed);
-                    UpdateProgressSafely(processed, total);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
+                        // Find which root folder this file came from
+                        string? root = folderRoots.FirstOrDefault(r => file.Filename.StartsWith(r, StringComparison.OrdinalIgnoreCase));
+                        if (root == null)
+                        {
+                            return;
+                        }
+
+                        string relativePath = Path.GetRelativePath(root, file.Filename);
+                        string targetDir = Path.Combine(destRoot, Path.GetFileName(root), Path.GetDirectoryName(relativePath) ?? "");
+                        string targetFile = Path.Combine(targetDir, Path.GetFileName(file.Filename));
+
+                        try
+                        {
+                            Directory.CreateDirectory(targetDir);
+                            File.Copy(file.Filename, targetFile, overwrite: true);
+                            Interlocked.Increment(ref copied);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to copy {file.Filename}: {ex.Message}");
+                            Interlocked.Increment(ref failed);
+                        }
+
+                        Interlocked.Increment(ref processed);
+                        UpdateProgressSafely(processed, total);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                // wait for all deletions to complete
+                await Task.WhenAll(copyTasks);
+
+                // clear cancellation
+                cts = null;
             });
 
-            // wait for all deletions to complete
-            await Task.WhenAll(copyTasks);
-
-            // clear cancellation
-            cts = null;
-        });
-
-        // show summary
-        MessageBox.Show($"Copied {copied} files to:\n{destRoot}\nFailed to copy {failed} files");
-
-        // clear busy state
-        IsBusy = false;
+            // show summary
+            MessageBox.Show($"Copied {copied} files to:\n{destRoot}\nFailed to copy {failed} files");
+        }
+        catch (OperationCanceledException)
+        {
+            EndOperation(OperationState.Cancelled);
+        }
+        catch
+        {
+            EndOperation(OperationState.Error);
+        }
+        finally
+        {
+            if (CurrentState == OperationState.Running)
+            {
+                EndOperation();
+            }
+        }
     }
 
     //============================================================
     // ⏱️ COMMANDS — PAUSE / RESUME / CANCEL
     //============================================================
 
+    private void StartOperation()
+    {
+        CurrentState = OperationState.Running;
+        operationStarted = DateTime.UtcNow;
+        stepStartTime = DateTime.UtcNow;
+        ProgressValue = 0;
+        cts = new CancellationTokenSource();
+        pauseEvent.Set();
+    }
+
+    private void EndOperation(OperationState endState = OperationState.Completed)
+    {
+        CurrentState = endState;
+        cts = null;
+        pauseEvent.Set();
+        ProgressValue = 100;
+    }
+
     // Cancels current scan or delete task
     [RelayCommand(CanExecute = nameof(CanCancel))]
     void Cancel()
     {
-        cts?.Cancel();
-        IsPaused = false;
-        pauseEvent.Set(); // ensure unpaused state for next run
+        EndOperation(OperationState.Cancelled);
     }
 
     [RelayCommand(CanExecute = nameof(CanPause))]
     void Pause()
     {
-        if (!IsPaused)
+        if (CurrentState == OperationState.Running)
         {
-            IsPaused = true;
+            CurrentState = OperationState.Paused;
             pauseEvent.Reset(); // causes all worker loops to wait
             EtaText = "Paused";
         }
@@ -760,9 +792,9 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanResume))]
     void Resume()
     {
-        if (IsPaused)
+        if (CurrentState == OperationState.Paused)
         {
-            IsPaused = false;
+            CurrentState = OperationState.Running;
             pauseEvent.Set(); // releases all waiting threads
             stepStartTime = DateTime.UtcNow; // restart ETA timing
         }
@@ -843,7 +875,9 @@ public partial class MainViewModel : ObservableObject
         if (value.HasValue)
         {
             foreach (var f in Folders)
+            {
                 f.IsVisible = value.Value;
+            }
         }
     }
 
@@ -853,7 +887,9 @@ public partial class MainViewModel : ObservableObject
         if (value.HasValue)
         {
             foreach (var f in Folders)
+            {
                 f.ShowKeep = value.Value;
+            }
         }
     }
 
@@ -863,7 +899,9 @@ public partial class MainViewModel : ObservableObject
         if (value.HasValue)
         {
             foreach (var f in Folders)
+            {
                 f.ShowDelete = value.Value;
+            }
         }
     }
 
@@ -873,7 +911,9 @@ public partial class MainViewModel : ObservableObject
         if (value.HasValue)
         {
             foreach (var f in Folders)
+            {
                 f.ShowUnique = value.Value;
+            }
         }
     }
 
@@ -881,19 +921,14 @@ public partial class MainViewModel : ObservableObject
     // 🪄 EVENT HANDLERS & HELPERS
     //============================================================
 
-    partial void OnIsBusyChanged(bool value)
+    partial void OnCurrentStateChanged(OperationState value)
     {
+        // Update command availability whenever state changes
         ScanCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         CopyFilesCommand.NotifyCanExecuteChanged();
         AddFolderCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
-        PauseCommand.NotifyCanExecuteChanged();
-        ResumeCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnIsPausedChanged(bool value)
-    {
         PauseCommand.NotifyCanExecuteChanged();
         ResumeCommand.NotifyCanExecuteChanged();
     }

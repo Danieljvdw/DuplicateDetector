@@ -1,3 +1,3 @@
 # DuplicateDetector
 
-repo
+This project is designed to solve the problem of having duplicate files (or to copy unique files) between hard drives and/or folders. The reason for making it is because I had multiple backups which contained the same files e.g. a photos folder backup when switching phones. Even if you can get the HDD or operating system to compress the duplicate files so that the physical storage is less, the file structure will still be messy. I also have had backup HDDs which have a different folder structure, so checking for unique files on the cold HDD before re-writing it seems like a good idea

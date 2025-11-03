@@ -68,6 +68,9 @@
                 <!-- Progress bar -->
                 <ProgressBar Value="{Binding ProgressValue}" Maximum="100"/>
 
+                <!-- State -->
+                <TextBlock Text="{Binding CurrentState}"/>
+
                 <!-- ETA -->
                 <TextBlock Text="{Binding EtaText}"/>
 

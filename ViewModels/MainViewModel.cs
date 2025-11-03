@@ -79,6 +79,7 @@ public partial class MainViewModel : ObservableObject
         Idle,
         Running,
         Paused,
+        Cancelling,
         Cancelled,
         Completed,
         Error
@@ -92,11 +93,10 @@ public partial class MainViewModel : ObservableObject
     private double lastProgressValue = 0; // to throttle progress updates
     private readonly object progressLock = new(); // lock for progress updates
     private DateTime operationStarted = DateTime.UtcNow; // time when current operation started
-    private DateTime stepStartTime; // time when current step started
     private ManualResetEventSlim pauseEvent = new(true); // for pausing operations
-    private CancellationTokenSource? cts = null; // For cancelling asynchronous operations
+    private CancellationTokenSource cts = new CancellationTokenSource(); // For cancelling asynchronous operations
 
-    private bool CanRunOperations => CurrentState == OperationState.Idle || CurrentState == OperationState.Completed || CurrentState == OperationState.Error; // Whether operations can be started
+    private bool CanRunOperations => CurrentState == OperationState.Idle || CurrentState == OperationState.Completed || CurrentState == OperationState.Cancelled || CurrentState == OperationState.Error; // Whether operations can be started
     private bool CanCancel => CurrentState == OperationState.Running || CurrentState == OperationState.Paused; // Whether current operation can be cancelled
     private bool CanPause => CurrentState == OperationState.Running; // Whether current operation can be paused
     private bool CanResume => CurrentState == OperationState.Paused; // Whether current operation can be resumed
@@ -242,9 +242,6 @@ public partial class MainViewModel : ObservableObject
 
             await Task.Run(async () =>
             {
-                // reset progress
-                ProgressValue = 0;
-
                 // reset duplicate group index
                 FileEntryViewModel.duplicateGroupIndex = 0;
 
@@ -255,8 +252,10 @@ public partial class MainViewModel : ObservableObject
                 var allFiles = new List<FileInfo>();
                 foreach (var folder in Folders)
                 {
-                    pauseEvent.Wait(cts.Token);
+                    // Exit immediately if cancelled
                     cts.Token.ThrowIfCancellationRequested();
+
+                    pauseEvent.Wait(cts.Token);
                     var dirInfo = new DirectoryInfo(folder.Path);
                     var options = new EnumerationOptions()
                     {
@@ -274,16 +273,18 @@ public partial class MainViewModel : ObservableObject
                 // create file entries in parallel
                 ObservableCollection<FileEntryViewModel> tempObservableFiles = new ObservableCollection<FileEntryViewModel>();
 
-                // update step time
-                stepStartTime = DateTime.UtcNow;
-
                 var fileTasks = allFiles.Select(async file =>
                 {
+                    // Exit immediately if cancelled
+                    if (cts.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
                         pauseEvent.Wait(cts.Token);
-                        cts.Token.ThrowIfCancellationRequested();
                         var newFile = new FileEntryViewModel(file);
                         newFile.OnStateChanged = () =>
                         {
@@ -309,6 +310,12 @@ public partial class MainViewModel : ObservableObject
 
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
+
+                // exit if cancelled
+                if (cts.IsCancellationRequested)
+                {
+                    cts.Token.ThrowIfCancellationRequested();
+                }
 
                 // update Files
                 Files = tempObservableFiles;
@@ -348,17 +355,19 @@ public partial class MainViewModel : ObservableObject
 
                 processed = 0;
 
-                // update step time
-                stepStartTime = DateTime.UtcNow;
-
                 // Semaphore to limit concurrency
                 fileTasks = uniqueSizeFiles.Select(async file =>
                 {
+                    // Exit immediately if cancelled
+                    if (cts?.IsCancellationRequested ?? true)
+                    {
+                        return;
+                    }
+
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
                         pauseEvent.Wait(cts.Token);
-                        cts.Token.ThrowIfCancellationRequested();
                         file.State = FileEntryViewModel.FileState.unique;
 
                         processed++;
@@ -373,23 +382,31 @@ public partial class MainViewModel : ObservableObject
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
 
+                // exit if cancelled
+                if (cts.IsCancellationRequested)
+                {
+                    cts.Token.ThrowIfCancellationRequested();
+                }
+
                 // flatten the groups into a single list of files to hash
                 var filesToHash = sizeGroups.SelectMany(g => g).ToList();
 
                 processed = 0;
 
-                // update step time
-                stepStartTime = DateTime.UtcNow;
-
                 // hash all candidate files in parallel
                 // Semaphore to limit concurrency
                 fileTasks = filesToHash.Select(async file =>
                 {
+                    // Exit immediately if cancelled
+                    if (cts?.IsCancellationRequested ?? true)
+                    {
+                        return;
+                    }
+
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
                         pauseEvent.Wait(cts.Token);
-                        cts.Token.ThrowIfCancellationRequested();
                         await file.HashAsync(SelectedAlgorithm, cts.Token, pauseEvent); // your existing sync hash method
                         Interlocked.Increment(ref processed);
                         UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 2);
@@ -402,6 +419,12 @@ public partial class MainViewModel : ObservableObject
 
                 // wait for all files to complete
                 await Task.WhenAll(fileTasks);
+
+                // exit if cancelled
+                if (cts.IsCancellationRequested)
+                {
+                    cts.Token.ThrowIfCancellationRequested();
+                }
 
                 // if there were no files to hash, update progress
                 if (filesToHash.Count == 0)
@@ -418,9 +441,6 @@ public partial class MainViewModel : ObservableObject
 
                 processed = 0;
                 int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
-
-                // update step time
-                stepStartTime = DateTime.UtcNow;
 
                 // compare files within each hash group
                 foreach (var group in hashGroups)
@@ -524,17 +544,26 @@ public partial class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            EndOperation(OperationState.Cancelled);
+            // operation was cancelled
         }
         catch
         {
-            EndOperation(OperationState.Error);
+            // some other error occurred
+            if (CurrentState == OperationState.Running || CurrentState == OperationState.Paused)
+            {
+                CurrentState = OperationState.Error;
+            }
         }
         finally
         {
+            // finalize operation
             if (CurrentState == OperationState.Running)
             {
                 EndOperation();
+            }
+            else
+            {
+                EndOperation(CurrentState);
             }
         }
     }
@@ -584,29 +613,25 @@ public partial class MainViewModel : ObservableObject
         {
             await Task.Run(async () =>
             {
-                // setup cancellation token
-                cts = new CancellationTokenSource();
-
-                // reset progress
-                ProgressValue = 0;
-
                 // get files to delete
                 var filesToDelete = Files.Where(f => f.State == FileEntryViewModel.FileState.delete).ToList();
                 int total = filesToDelete.Count;
                 int processed = 0;
 
-                // update step time
-                stepStartTime = DateTime.UtcNow;
-
                 // Semaphore to limit concurrency
                 using var semaphore = new SemaphoreSlim(MaxThreads);
                 var deleteTasks = filesToDelete.Select(async file =>
                 {
+                    // Exit immediately if cancelled
+                    if (cts?.IsCancellationRequested ?? true)
+                    {
+                        return;
+                    }
+
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
                         pauseEvent.Wait(cts.Token);
-                        cts.Token.ThrowIfCancellationRequested();
                         file.DeleteToRecycleBin();
                         Interlocked.Increment(ref processed);
                         UpdateProgressSafely(processed, total);
@@ -623,17 +648,26 @@ public partial class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            EndOperation(OperationState.Cancelled);
+            // operation was cancelled
         }
         catch
         {
-            EndOperation(OperationState.Error);
+            // some other error occurred
+            if (CurrentState == OperationState.Running || CurrentState == OperationState.Paused)
+            {
+                CurrentState = OperationState.Error;
+            }
         }
         finally
         {
+            // finalize operation
             if (CurrentState == OperationState.Running)
             {
                 EndOperation();
+            }
+            else
+            {
+                EndOperation(CurrentState);
             }
         }
     }
@@ -677,18 +711,20 @@ public partial class MainViewModel : ObservableObject
                 int total = visibleFiles.Count;
                 int processed = 0;
 
-                // update step time
-                stepStartTime = DateTime.UtcNow;
-
                 // Semaphore to limit concurrency
                 using var semaphore = new SemaphoreSlim(MaxThreads);
                 var copyTasks = visibleFiles.Select(async file =>
                 {
+                    // Exit immediately if cancelled
+                    if (cts?.IsCancellationRequested ?? true)
+                    {
+                        return;
+                    }
+
                     await semaphore.WaitAsync(cts.Token);
                     try
                     {
                         pauseEvent.Wait(cts.Token);
-                        cts.Token.ThrowIfCancellationRequested();
 
                         // Find which root folder this file came from
                         string? root = folderRoots.FirstOrDefault(r => file.Filename.StartsWith(r, StringComparison.OrdinalIgnoreCase));
@@ -724,9 +760,6 @@ public partial class MainViewModel : ObservableObject
 
                 // wait for all deletions to complete
                 await Task.WhenAll(copyTasks);
-
-                // clear cancellation
-                cts = null;
             });
 
             // show summary
@@ -734,17 +767,26 @@ public partial class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            EndOperation(OperationState.Cancelled);
+            // operation was cancelled
         }
         catch
         {
-            EndOperation(OperationState.Error);
+            // some other error occurred
+            if (CurrentState == OperationState.Running || CurrentState == OperationState.Paused)
+            {
+                CurrentState = OperationState.Error;
+            }
         }
         finally
         {
+            // finalize operation
             if (CurrentState == OperationState.Running)
             {
                 EndOperation();
+            }
+            else
+            {
+                EndOperation(CurrentState);
             }
         }
     }
@@ -757,7 +799,6 @@ public partial class MainViewModel : ObservableObject
     {
         CurrentState = OperationState.Running;
         operationStarted = DateTime.UtcNow;
-        stepStartTime = DateTime.UtcNow;
         ProgressValue = 0;
         cts = new CancellationTokenSource();
         pauseEvent.Set();
@@ -765,17 +806,20 @@ public partial class MainViewModel : ObservableObject
 
     private void EndOperation(OperationState endState = OperationState.Completed)
     {
+        if (CurrentState == OperationState.Cancelling)
+        {
+            endState = OperationState.Cancelled;
+        }
         CurrentState = endState;
-        cts = null;
         pauseEvent.Set();
-        ProgressValue = 100;
     }
 
     // Cancels current scan or delete task
     [RelayCommand(CanExecute = nameof(CanCancel))]
     void Cancel()
     {
-        EndOperation(OperationState.Cancelled);
+        CurrentState = OperationState.Cancelling;
+        cts.Cancel();
     }
 
     [RelayCommand(CanExecute = nameof(CanPause))]
@@ -796,7 +840,6 @@ public partial class MainViewModel : ObservableObject
         {
             CurrentState = OperationState.Running;
             pauseEvent.Set(); // releases all waiting threads
-            stepStartTime = DateTime.UtcNow; // restart ETA timing
         }
     }
 
@@ -837,7 +880,7 @@ public partial class MainViewModel : ObservableObject
 
     private void UpdateEta(double stepProgress)
     {
-        var elapsed = (DateTime.UtcNow - stepStartTime).TotalSeconds;
+        var elapsed = (DateTime.UtcNow - operationStarted).TotalSeconds;
 
         // calculate ETA based on step progress
         if (stepProgress > 0)

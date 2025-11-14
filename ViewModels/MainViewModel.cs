@@ -116,6 +116,8 @@ public partial class MainViewModel : ObservableObject
     public double DeletePercentage => TotalData > 0 ? (double)DeleteData / TotalData : 0;
     public double UniquePercentage => TotalData > 0 ? (double)UniqueData / TotalData : 0;
 
+    public DiskViewModel DiskViewModel { get; } = new DiskViewModel();
+
     //============================================================
     // 🧱 VERSION INFO
     //============================================================

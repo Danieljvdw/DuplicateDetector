@@ -1,48 +1,58 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Win32.SafeHandles;
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Management;
+using System.Runtime.InteropServices;
+using System.Timers;
 
 namespace DuplicateDetector.ViewModels;
 
 public partial class DiskInfo : ObservableObject
 {
-    private PerformanceCounter readCounter;
-    private PerformanceCounter writeCounter;
-    private PerformanceCounter percentDiskTimeCounter;
-
-    public string DriveLetter { get; set; }     // e.g. "C:"
-    public string DriveType { get; set; }       // e.g. "Fixed"
-    public string MediaType { get; set; }       // e.g. "SSD", "NVMe", "HDD"
-
-    // Disk space stats (in bytes) — converted in the view with ByteSizeConverter
     [ObservableProperty] private long totalSpace;
     [ObservableProperty] private long freeSpace;
     [ObservableProperty] private long usedSpace;
+    [ObservableProperty] private double utilization;
 
-    // Utilization (percentage of used space)
-    [ObservableProperty] double utilization = 0.0d;
+    [ObservableProperty] private double readSpeed;
+    [ObservableProperty] private double writeSpeed;
+    [ObservableProperty] private double activeTime;
 
-    // % busy (Task Manager style)
-    [ObservableProperty] double activeTime = 0.0d;
+    private PerformanceCounter? readCounter;
+    private PerformanceCounter? writeCounter;
+    private PerformanceCounter? activeCounter;
 
-    // Disk performance metrics (in MB/s)
-    [ObservableProperty] double readSpeed = 0.0d;
-    [ObservableProperty] double writeSpeed = 0.0d;
+    public string DriveLetter { get; set; }
 
-    public DiskInfo(string driveLetter, string driveType)
+    public SemaphoreSlim DiskSemaphore { get; } = new SemaphoreSlim(1, 1);
+
+    public DiskInfo(DriveInfo drive)
     {
-        DriveLetter = driveLetter;
-        DriveType = driveType;
-        MediaType = GetMediaType(driveLetter);
+        DriveLetter = drive.Name.TrimEnd('\\');
 
-        string instanceName = DriveLetter.TrimEnd('\\');
-        string physInstance = GetPhysicalDiskInstanceName();
+        var instance = GetDiskInstanceName(DriveLetter);
+        if (instance != null)
+        {
+            readCounter = new PerformanceCounter("LogicalDisk", "Disk Read Bytes/sec", instance);
+            writeCounter = new PerformanceCounter("LogicalDisk", "Disk Write Bytes/sec", instance);
+            activeCounter = new PerformanceCounter("LogicalDisk", "% Disk Time", instance);
 
-        readCounter = new PerformanceCounter("LogicalDisk", "Disk Read Bytes/sec", instanceName);
-        writeCounter = new PerformanceCounter("LogicalDisk", "Disk Write Bytes/sec", instanceName);
-        percentDiskTimeCounter = new PerformanceCounter("PhysicalDisk", "PercentDiskTime", physInstance);
+            // First call usually returns 0, so read once
+            _ = readCounter.NextValue();
+            _ = writeCounter.NextValue();
+            _ = activeCounter.NextValue();
+        }
+    }
+
+    private static string? GetDiskInstanceName(string driveLetter)
+    {
+        var category = new PerformanceCounterCategory("LogicalDisk");
+        return category.GetInstanceNames()
+                       .FirstOrDefault(i => i.Equals(driveLetter, StringComparison.OrdinalIgnoreCase));
     }
 
     public void Update()
@@ -53,66 +63,31 @@ public partial class DiskInfo : ObservableObject
             return;
         }
 
+        // Disk space
         TotalSpace = drive.TotalSize;
         FreeSpace = drive.TotalFreeSpace;
         UsedSpace = TotalSpace - FreeSpace;
         Utilization = (double)UsedSpace / TotalSpace * 100.0;
 
-        if (readCounter != null && writeCounter != null && percentDiskTimeCounter != null)
+        // Disk performance
+        if (readCounter != null)
         {
             ReadSpeed = readCounter.NextValue();
-            WriteSpeed = writeCounter.NextValue();
-            ActiveTime = percentDiskTimeCounter.NextValue();
         }
-    }
-
-    private string GetMediaType(string driveLetter)
-    {
-        try
+        if (writeCounter != null)
         {
-            using var searcher = new ManagementObjectSearcher(
-                "SELECT MediaType, Model FROM Win32_DiskDrive");
-
-            foreach (ManagementObject drive in searcher.Get())
-            {
-                string mediaType = drive["MediaType"]?.ToString() ?? "";
-                string model = drive["Model"]?.ToString() ?? "";
-
-                if (mediaType.Contains("SSD", StringComparison.OrdinalIgnoreCase) || model.Contains("SSD", StringComparison.OrdinalIgnoreCase))
-                {
-                    return "SSD";
-                }
-
-                if (model.Contains("NVMe", StringComparison.OrdinalIgnoreCase))
-                {
-                    return "NVMe";
-                }
-            }
+            WriteSpeed = writeCounter.NextValue();
         }
-        catch { }
-
-        return "HDD";
-    }
-
-    private string GetPhysicalDiskInstanceName()
-    {
-        // Remove the colon (C: -> C)
-        string letter = DriveLetter.TrimEnd('\\').Replace(":", "");
-
-        var category = new PerformanceCounterCategory("PhysicalDisk");
-        var instances = category.GetInstanceNames();
-
-        // Usually instances are like "0 C:", "1 D:", or just "0", "1"
-        return instances.FirstOrDefault(i => i.EndsWith($" {letter}", StringComparison.OrdinalIgnoreCase))
-               ?? instances.FirstOrDefault(i => i.Equals(letter, StringComparison.OrdinalIgnoreCase))
-               ?? "_Total"; // fallback
+        if (activeCounter != null)
+        {
+            ActiveTime = activeCounter.NextValue();
+        }
     }
 }
 
 public partial class DiskViewModel : ObservableObject
 {
     private readonly System.Timers.Timer _updateTimer;
-
     public ObservableCollection<DiskInfo> Disks { get; } = new ObservableCollection<DiskInfo>();
 
     public DiskViewModel()
@@ -120,7 +95,6 @@ public partial class DiskViewModel : ObservableObject
         EnumerateDisks();
         SetupDriveEventWatchers();
 
-        // Update every 1 second (can be called externally too)
         _updateTimer = new System.Timers.Timer(1000);
         _updateTimer.Elapsed += (s, e) => Update();
         _updateTimer.Start();
@@ -129,10 +103,9 @@ public partial class DiskViewModel : ObservableObject
     public void EnumerateDisks()
     {
         Disks.Clear();
-
         foreach (var drive in DriveInfo.GetDrives().Where(d => d.DriveType != DriveType.CDRom))
         {
-            var info = new DiskInfo(drive.Name.TrimEnd('\\'), drive.DriveType.ToString());
+            var info = new DiskInfo(drive);
             Disks.Add(info);
         }
     }
@@ -147,9 +120,8 @@ public partial class DiskViewModel : ObservableObject
 
     private void SetupDriveEventWatchers()
     {
-        // Listen for drive insert/remove
-        var insertWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_VolumeChangeEvent WHERE EventType = 2")); // inserted
-        var removeWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_VolumeChangeEvent WHERE EventType = 3")); // removed
+        var insertWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_VolumeChangeEvent WHERE EventType = 2"));
+        var removeWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_VolumeChangeEvent WHERE EventType = 3"));
 
         insertWatcher.EventArrived += (s, e) => EnumerateDisks();
         removeWatcher.EventArrived += (s, e) => EnumerateDisks();

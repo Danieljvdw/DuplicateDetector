@@ -69,100 +69,92 @@ public partial class FileEntryViewModel : ObservableObject
     }
 
     // Calculates hash of the file using selected algorithm
-    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken token, ManualResetEventSlim pauseEvent)
+    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken token, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore)
     {
         State = FileState.hashing;
 
         try
         {
-            // 1 MB buffer for efficient SSD reads
-            byte[] buffer = new byte[1024 * 1024];
+            // Large buffer (e.g., 16MB)
+            byte[] buffer = new byte[16 * 1024 * 1024];
 
-            await using var stream = new FileStream(
-                Filename,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: buffer.Length,
-                useAsync: true);
+            await using var stream = new FileStream(Filename, FileMode.Open, FileAccess.Read, FileShare.Read, buffer.Length, FileOptions.SequentialScan | FileOptions.Asynchronous);
 
             byte[] hashBytes;
 
-            // Select hashing algorithm
+            int bytesRead;
+
+            var crc32 = new System.IO.Hashing.Crc32();
+            var md5 = MD5.Create();
+            var sha256 = SHA256.Create();
+            using var sha512 = SHA512.Create();
+
+            while (true)
+            {
+                await diskSemaphore.WaitAsync(token);
+                try
+                {
+                    bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
+                }
+                finally
+                {
+                    diskSemaphore.Release();
+                }
+
+                if (bytesRead == 0)
+                {
+                    break;
+                }
+
+                switch (compareAlgorithm)
+                {
+                    case MainViewModel.CompareAlgorithm.Crc32:
+                    case MainViewModel.CompareAlgorithm.Crc32PlusFullCompare:
+                        crc32.Append(buffer.AsSpan(0, bytesRead));
+                        break;
+                    case MainViewModel.CompareAlgorithm.MD5:
+                        md5.TransformBlock(buffer, 0, bytesRead, null, 0);
+                        break;
+                    case MainViewModel.CompareAlgorithm.SHA256:
+                        sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
+                        break;
+                    case MainViewModel.CompareAlgorithm.SHA512:
+                        sha512.TransformBlock(buffer, 0, bytesRead, null, 0);
+                        break;
+                }
+
+                pauseEvent.Wait(token);
+                token.ThrowIfCancellationRequested();
+            }
+
             switch (compareAlgorithm)
             {
                 case MainViewModel.CompareAlgorithm.Crc32:
                 case MainViewModel.CompareAlgorithm.Crc32PlusFullCompare:
-                    var crc32 = new System.IO.Hashing.Crc32();
-                    int bytesRead;
-                    while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
-                    {
-                        // Incrementally compute CRC32 checksum
-                        crc32.Append(buffer.AsSpan(0, bytesRead));
-                        pauseEvent.Wait(token);
-                        token.ThrowIfCancellationRequested();
-                    }
-
                     hashBytes = crc32.GetCurrentHash();
                     break;
-
                 case MainViewModel.CompareAlgorithm.MD5:
-                    using (var md5 = MD5.Create())
-                    {
-                        int read;
-                        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
-                        {
-                            md5.TransformBlock(buffer, 0, read, null, 0);
-                            pauseEvent.Wait(token);
-                            token.ThrowIfCancellationRequested();
-                        }
-                        md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                        hashBytes = md5.Hash!;
-                    }
+                    md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    hashBytes = md5.Hash!;
                     break;
-
                 case MainViewModel.CompareAlgorithm.SHA256:
-                    using (var sha256 = SHA256.Create())
-                    {
-
-                        int read;
-                        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
-                        {
-                            sha256.TransformBlock(buffer, 0, read, null, 0);
-                            pauseEvent.Wait(token);
-                            token.ThrowIfCancellationRequested();
-                        }
-                        sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                        hashBytes = sha256.Hash!;
-                    }
+                    sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    hashBytes = sha256.Hash!;
                     break;
-
                 case MainViewModel.CompareAlgorithm.SHA512:
-                    using (var sha512 = SHA512.Create())
-                    {
-                        int read;
-                        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
-                        {
-                            sha512.TransformBlock(buffer, 0, read, null, 0);
-                            pauseEvent.Wait(token);
-                            token.ThrowIfCancellationRequested();
-                        }
-                        sha512.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                        hashBytes = sha512.Hash!;
-                    }
+                    sha512.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    hashBytes = sha512.Hash!;
                     break;
-
                 default:
                     throw new Exception("Unknown algorithm");
             }
 
-            // Convert hash bytes to lowercase hex string
             HashString = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
             State = FileState.hashed;
         }
         catch (OperationCanceledException)
         {
-            // allow cancellation to propagate silently
             State = FileState.idle;
             throw;
         }
@@ -171,7 +163,6 @@ public partial class FileEntryViewModel : ObservableObject
             State = FileState.error;
         }
     }
-
 
     // Moves the file to the recycle bin and updates state
     public void DeleteToRecycleBin()

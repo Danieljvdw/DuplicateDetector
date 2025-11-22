@@ -391,36 +391,55 @@ public partial class MainViewModel : ObservableObject
                 }
 
                 // flatten the groups into a single list of files to hash
-                var filesToHash = sizeGroups.SelectMany(g => g).ToList();
+                List<FileEntryViewModel> allFilesToHash = sizeGroups.SelectMany(g => g).ToList();
+
+                // we want a task for each disk so that each disk can be processed in parallel
+                List<List<FileEntryViewModel>> filesToHash = allFilesToHash
+                    .GroupBy(f => Path.GetPathRoot(f.Filename))
+                    .Select(g => g.ToList())
+                    .ToList();
 
                 processed = 0;
 
                 // hash all candidate files in parallel
                 // Semaphore to limit concurrency
-                fileTasks = filesToHash.Select(async file =>
+                var fileGroupTasks = filesToHash.Select(async fileDiskGroup =>
                 {
-                    // Exit immediately if cancelled
-                    if (cts?.IsCancellationRequested ?? true)
-                    {
-                        return;
-                    }
+                    // get disk semaphore - make sure one file reads at a time per disk
+                    SemaphoreSlim diskSemaphore = new(1, 1);
 
-                    await semaphore.WaitAsync(cts.Token);
-                    try
+                    // semaphore for maximum number of files being hashed at the same time (limiting RAM usage)
+                    SemaphoreSlim filesPerDisk = new SemaphoreSlim(5, 5);
+
+                    var fileTasks = fileDiskGroup.Select(async file =>
                     {
-                        pauseEvent.Wait(cts.Token);
-                        await file.HashAsync(SelectedAlgorithm, cts.Token, pauseEvent); // your existing sync hash method
-                        Interlocked.Increment(ref processed);
-                        UpdateProgressSafely(processed, filesToHash.Count, numberOfSteps, 2);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
+                        // Exit immediately if cancelled
+                        if (cts?.IsCancellationRequested ?? true)
+                        {
+                            return;
+                        }
+
+                        // wait for global semaphore
+                        await filesPerDisk.WaitAsync(cts.Token);
+                        try
+                        {
+                            // hash file
+                            pauseEvent.Wait(cts.Token);
+                            await file.HashAsync(SelectedAlgorithm, cts.Token, pauseEvent, diskSemaphore); // your existing sync hash method
+                            Interlocked.Increment(ref processed);
+                            UpdateProgressSafely(processed, allFilesToHash.Count, numberOfSteps, 2);
+                        }
+                        finally
+                        {
+                            filesPerDisk.Release();
+                        }
+                    });
+
+                    await Task.WhenAll(fileTasks);
                 });
 
                 // wait for all files to complete
-                await Task.WhenAll(fileTasks);
+                await Task.WhenAll(fileGroupTasks);
 
                 // exit if cancelled
                 if (cts.IsCancellationRequested)

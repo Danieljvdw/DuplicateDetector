@@ -28,8 +28,6 @@ public partial class DiskInfo : ObservableObject
 
     public string DriveLetter { get; set; }
 
-    public SemaphoreSlim DiskSemaphore { get; } = new SemaphoreSlim(1, 1);
-
     public DiskInfo(DriveInfo drive)
     {
         DriveLetter = drive.Name.TrimEnd('\\');

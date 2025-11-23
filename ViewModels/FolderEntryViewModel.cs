@@ -15,6 +15,8 @@ public partial class FolderEntryViewModel : ObservableObject
     [ObservableProperty] bool showKeep = true;
     [ObservableProperty] bool showDelete = true;
     [ObservableProperty] bool showUnique = true;
+    [ObservableProperty] bool showHashing = true;
+    [ObservableProperty] bool showError = true;
 
     public FolderEntryViewModel(string path)
     {

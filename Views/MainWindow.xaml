@@ -151,7 +151,7 @@
                                     </GridViewColumn.Header>
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                                <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}"/>
+                                            <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
@@ -188,6 +188,30 @@
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding ShowUnique, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                
+                                <!-- Hashing -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Hashing" IsThreeState="True" IsChecked="{Binding AllHashingChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowHashing, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                    
+                                <!-- Error -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Error" IsThreeState="True" IsChecked="{Binding AllErrorChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowError, Mode=TwoWay}"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>

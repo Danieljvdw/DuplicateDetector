@@ -981,6 +981,30 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    [ObservableProperty] bool? allHashingChecked = true;
+    partial void OnAllHashingCheckedChanged(bool? value)
+    {
+        if (value.HasValue)
+        {
+            foreach (var f in Folders)
+            {
+                f.ShowHashing = value.Value;
+            }
+        }
+    }
+
+    [ObservableProperty] bool? allErrorChecked = true;
+    partial void OnAllErrorCheckedChanged(bool? value)
+    {
+        if (value.HasValue)
+        {
+            foreach (var f in Folders)
+            {
+                f.ShowError = value.Value;
+            }
+        }
+    }
+
     //============================================================
     // 🪄 EVENT HANDLERS & HELPERS
     //============================================================
@@ -1008,10 +1032,16 @@ public partial class MainViewModel : ObservableObject
         // find the folder this file belongs to
         var folder = Folders.FirstOrDefault(x => f.Filename.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase));
 
-        // if no folder found or folder is hidden, filter out
-        if (folder == null || !folder.IsVisible)
+        // if no folder found, filter out
+        if (folder == null)
         {
             return false;
+        }
+
+        // if folder is set to visible, always show
+        if (folder.IsVisible)
+        {
+            return true;
         }
 
         // apply that folder's filters
@@ -1020,7 +1050,9 @@ public partial class MainViewModel : ObservableObject
             FileEntryViewModel.FileState.keep => folder.ShowKeep,
             FileEntryViewModel.FileState.delete => folder.ShowDelete,
             FileEntryViewModel.FileState.unique => folder.ShowUnique,
-            _ => true
+            FileEntryViewModel.FileState.hashing => folder.ShowHashing,
+            FileEntryViewModel.FileState.error => folder.ShowError,
+            _ => false
         };
     }
 }

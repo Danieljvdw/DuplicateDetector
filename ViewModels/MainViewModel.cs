@@ -58,7 +58,7 @@ public partial class MainViewModel : ObservableObject
     //============================================================
 
     // Currently selected hashing algorithm
-    [ObservableProperty] CompareAlgorithm selectedAlgorithm = CompareAlgorithm.MD5;
+    [ObservableProperty] CompareAlgorithm selectedAlgorithm = CompareAlgorithm.SHA512;
 
 #if false // want to enable storing hashes in file for low RAM usage
     [ObservableProperty] bool useHashFile;

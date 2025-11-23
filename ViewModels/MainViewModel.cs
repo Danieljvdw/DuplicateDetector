@@ -425,7 +425,7 @@ public partial class MainViewModel : ObservableObject
                         {
                             // hash file
                             pauseEvent.Wait(cts.Token);
-                            await file.HashAsync(SelectedAlgorithm, cts.Token, pauseEvent, diskSemaphore); // your existing sync hash method
+                            await file.HashAsync(SelectedAlgorithm, cts.Token, pauseEvent, diskSemaphore, FilesView); // your existing sync hash method
                             Interlocked.Increment(ref processed);
                             UpdateProgressSafely(processed, allFilesToHash.Count, numberOfSteps, 2);
                         }

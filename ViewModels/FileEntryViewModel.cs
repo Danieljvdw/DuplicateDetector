@@ -62,15 +62,21 @@ public partial class FileEntryViewModel : ObservableObject
     [ObservableProperty]
     int? duplicateGroup = null;
 
+    // Default cancellation token
+    public CancellationTokenSource cts = new();
+    private readonly CancellationToken fileToken = CancellationToken.None;
+
     // Constructor initializes from FileInfo
     public FileEntryViewModel(FileInfo info)
     {
         Filename = info.FullName;
         Size = info.Length;
+
+        fileToken = cts.Token;
     }
 
     // Calculates hash of the file using selected algorithm
-    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken token, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore, ICollectionView FilesView)
+    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken processToken, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore, ICollectionView FilesView)
     {
         State = FileState.hashing;
 
@@ -103,10 +109,10 @@ public partial class FileEntryViewModel : ObservableObject
             while (true)
             {
                 // Wait for disk semaphore to limit concurrent disk access
-                await diskSemaphore.WaitAsync(token);
+                await diskSemaphore.WaitAsync(processToken);
                 try
                 {
-                    bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
+                    bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, processToken);
                 }
                 finally
                 {
@@ -138,8 +144,11 @@ public partial class FileEntryViewModel : ObservableObject
                 }
 
                 // Check for pause or cancellation
-                pauseEvent.Wait(token);
-                token.ThrowIfCancellationRequested();
+                pauseEvent.Wait(processToken);
+                processToken.ThrowIfCancellationRequested();
+
+                // Check for file-specific cancellation
+                fileToken.ThrowIfCancellationRequested();
             }
 
             // Finalize hash computation

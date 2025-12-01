@@ -287,6 +287,9 @@
                                                 <DataTrigger Binding="{Binding State}" Value="delete">
                                                     <Setter Property="Cursor" Value="Hand"/>
                                                 </DataTrigger>
+                                                <DataTrigger Binding="{Binding State}" Value="hashing">
+                                                    <Setter Property="Cursor" Value="Hand"/>
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>

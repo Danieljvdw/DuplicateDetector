@@ -14,8 +14,7 @@ public partial class MainWindow : Window
 
     private void StateCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is Border border &&
-              border.DataContext is FileEntryViewModel file)
+        if (sender is Border border && border.DataContext is FileEntryViewModel file)
         {
             // Only toggle between keep <-> delete
             if (file.State == FileEntryViewModel.FileState.keep)
@@ -25,6 +24,11 @@ public partial class MainWindow : Window
             else if (file.State == FileEntryViewModel.FileState.delete)
             {
                 file.State = FileEntryViewModel.FileState.keep;
+            }
+            else if (file.State == FileEntryViewModel.FileState.hashing)
+            {
+                // Cancel hashing operation
+                file.cts.Cancel();
             }
 
             // Optional: prevent DataGrid row selection from stealing the click

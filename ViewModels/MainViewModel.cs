@@ -234,337 +234,39 @@ public partial class MainViewModel : ObservableObject
         try
         {
             // clear previous results
-            await App.Current.Dispatcher.InvokeAsync(() =>
-            {
-                Files = new ObservableCollection<FileEntryViewModel>();
-                var cvs = new CollectionViewSource { Source = Files };
-                FilesView = cvs.View;
-                FilesView.Refresh();
-            });
+            await ResetUiAsync();
 
             await Task.Run(async () =>
             {
                 // reset duplicate group index
                 FileEntryViewModel.duplicateGroupIndex = 0;
 
-                // sempaphore to limit concurrency
+                // semaphore to limit concurrency
                 var semaphore = new SemaphoreSlim(MaxThreads);
 
                 // populate file list
-                var allFiles = new List<FileInfo>();
-                foreach (var folder in Folders)
-                {
-                    // Exit immediately if cancelled
-                    cts.Token.ThrowIfCancellationRequested();
-
-                    pauseEvent.Wait(cts.Token);
-                    var dirInfo = new DirectoryInfo(folder.Path);
-                    var options = new EnumerationOptions()
-                    {
-                        IgnoreInaccessible = true,
-                        RecurseSubdirectories = true,
-                        AttributesToSkip = FileAttributes.System
-                    };
-                    allFiles.AddRange(dirInfo.GetFiles("*", options));
-                }
+                var allFiles = CollectAllFiles();
 
                 // total files to process
                 int numberOfSteps = 4;
-                int processed = 0;
 
                 // create file entries in parallel
-                ObservableCollection<FileEntryViewModel> tempObservableFiles = new ObservableCollection<FileEntryViewModel>();
+                Files = await CreateFileEntriesAsync(allFiles, semaphore, numberOfSteps);
 
-                var fileTasks = allFiles.Select(async file =>
-                {
-                    // Exit immediately if cancelled
-                    if (cts.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    await semaphore.WaitAsync(cts.Token);
-                    try
-                    {
-                        pauseEvent.Wait(cts.Token);
-                        var newFile = new FileEntryViewModel(file);
-                        newFile.OnStateChanged = () =>
-                        {
-                            OnPropertyChanged(nameof(TotalData));
-                            OnPropertyChanged(nameof(UniqueData));
-                            OnPropertyChanged(nameof(DeleteData));
-                            OnPropertyChanged(nameof(KeepData));
-                            OnPropertyChanged(nameof(TotalAfterDelete));
-                            OnPropertyChanged(nameof(KeepPercentage));
-                            OnPropertyChanged(nameof(DeletePercentage));
-                            OnPropertyChanged(nameof(UniquePercentage));
-                        };
-                        tempObservableFiles.Add(newFile);
-
-                        processed++;
-                        UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 0);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                });
-
-                // wait for all files to complete
-                await Task.WhenAll(fileTasks);
-
-                // exit if cancelled
-                if (cts.IsCancellationRequested)
-                {
-                    cts.Token.ThrowIfCancellationRequested();
-                }
-
-                // update Files
-                Files = tempObservableFiles;
-
-                // Configure sorting behavior for file view
-                var cvs = new CollectionViewSource { Source = Files };
-                FilesView = cvs.View;
-                FilesView.Filter = FilterByVisibleFolders;
-
-                // Default sort: by duplicate group, size (desc), and filename
-                FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
-                FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
-                FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
-
-                // re-add folders visibility and filtering
-                foreach (var folder in Folders)
-                {
-                    folder.PropertyChanged += (_, __) => FilesView.Refresh();
-                }
-
-                OnPropertyChanged(nameof(FilesView));
-
-                await App.Current.Dispatcher.InvokeAsync(() =>
-                {
-                    FilesView.Refresh();
-                });
+                // configure sorting behavior for file view
+                InitializeFilesView();
 
                 // create groups of files with same size
-                var sizeGroups = Files.GroupBy(f => f.Size)
-                                  .Where(g => g.Count() > 1)
-                                  .ToList();
+                var sizeGroups = CreateSizeGroups();
 
                 // mark files with unique sizes as unique
-                var uniqueSizeFiles = Files.GroupBy(f => f.Size)
-                                       .Where(g => g.Count() == 1)
-                                       .SelectMany(g => g);
-
-                processed = 0;
-
-                // Semaphore to limit concurrency
-                fileTasks = uniqueSizeFiles.Select(async file =>
-                {
-                    // Exit immediately if cancelled
-                    if (cts?.IsCancellationRequested ?? true)
-                    {
-                        return;
-                    }
-
-                    await semaphore.WaitAsync(cts.Token);
-                    try
-                    {
-                        pauseEvent.Wait(cts.Token);
-                        file.State = FileEntryViewModel.FileState.unique;
-
-                        processed++;
-                        UpdateProgressSafely(processed, uniqueSizeFiles.Count(), numberOfSteps, 1);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                });
-
-                // wait for all files to complete
-                await Task.WhenAll(fileTasks);
-
-                // exit if cancelled
-                if (cts.IsCancellationRequested)
-                {
-                    cts.Token.ThrowIfCancellationRequested();
-                }
-
-                // flatten the groups into a single list of files to hash
-                List<FileEntryViewModel> allFilesToHash = sizeGroups.SelectMany(g => g).ToList();
-
-                // we want a task for each disk so that each disk can be processed in parallel
-                List<List<FileEntryViewModel>> filesToHash = allFilesToHash
-                    .GroupBy(f => Path.GetPathRoot(f.Filename))
-                    .Select(g => g.ToList())
-                    .ToList();
-
-                processed = 0;
+                await MarkUniqueSizeFilesAsync(sizeGroups, semaphore, numberOfSteps);
 
                 // hash all candidate files in parallel
-                // Semaphore to limit concurrency
-                var fileGroupTasks = filesToHash.Select(async fileDiskGroup =>
-                {
-                    // get disk semaphore - make sure one file reads at a time per disk
-                    SemaphoreSlim diskSemaphore = new(1, 1);
+                await HashCandidateFilesAsync(sizeGroups, numberOfSteps);
 
-                    // semaphore for maximum number of files being hashed at the same time (limiting RAM usage)
-                    SemaphoreSlim filesPerDisk = new SemaphoreSlim(5, 5);
-
-                    var fileTasks = fileDiskGroup.Select(async file =>
-                    {
-                        // Exit immediately if cancelled
-                        if (cts?.IsCancellationRequested ?? true)
-                        {
-                            return;
-                        }
-
-                        // wait for global semaphore
-                        await filesPerDisk.WaitAsync(cts.Token);
-                        try
-                        {
-                            // hash file
-                            pauseEvent.Wait(cts.Token);
-                            await file.HashAsync(SelectedAlgorithm, cts.Token, pauseEvent, diskSemaphore, FilesView); // your existing sync hash method
-                        }
-                        catch
-                        {
-                            // catch and ignore individual file errors
-                        }
-                        finally
-                        {
-                            Interlocked.Increment(ref processed);
-                            UpdateProgressSafely(processed, allFilesToHash.Count, numberOfSteps, 2);
-                            filesPerDisk.Release();
-                        }
-                    });
-
-                    await Task.WhenAll(fileTasks);
-                });
-
-                // wait for all files to complete
-                await Task.WhenAll(fileGroupTasks);
-
-                // exit if cancelled
-                if (cts.IsCancellationRequested)
-                {
-                    cts.Token.ThrowIfCancellationRequested();
-                }
-
-                // if there were no files to hash, update progress
-                if (filesToHash.Count == 0)
-                {
-                    UpdateProgressSafely(1, 1, numberOfSteps, 2);
-                }
-
-                // group files by hash
-                var hashGroups = Files
-                .Where(f => f.State == FileEntryViewModel.FileState.hashed)
-                .GroupBy(f => f.HashString)
-                .Where(g => g.Count() > 1)  // only groups with potential duplicates
-                .ToList();
-
-                processed = 0;
-                int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
-
-                // compare files within each hash group
-                foreach (var group in hashGroups)
-                {
-                    // optional: for weak hashes like CRC32, do byte-by-byte comparison
-                    bool needFullCompare = SelectedAlgorithm == MainViewModel.CompareAlgorithm.Crc32PlusFullCompare;
-
-                    // list to hold duplicates in this group
-                    var duplicates = new List<FileEntryViewModel>();
-
-                    // compare each file with every other file in the group
-                    for (int i = 0; i < group.Count(); i++)
-                    {
-                        var fileA = group.ElementAt(i);
-
-                        // skip if already marked
-                        if (fileA.State != FileEntryViewModel.FileState.hashed)
-                        {
-                            continue;
-                        }
-
-                        for (int j = i + 1; j < group.Count(); j++)
-                        {
-                            var fileB = group.ElementAt(j);
-
-                            // skip if already marked
-                            if (fileB.State != FileEntryViewModel.FileState.hashed)
-                            {
-                                continue;
-                            }
-
-                            // perform full comparison if needed
-                            bool isDuplicate = true;
-                            if (needFullCompare)
-                            {
-                                isDuplicate = AreFilesIdentical(fileA.Filename, fileB.Filename);
-                            }
-
-                            // mark as duplicates if they match
-                            if (isDuplicate)
-                            {
-                                if (!duplicates.Contains(fileA))
-                                {
-                                    duplicates.Add(fileA);
-                                }
-                                duplicates.Add(fileB);
-                            }
-                        }
-
-                        // add the current file to duplicates if any were found
-                        if (duplicates.Count > 0)
-                        {
-                            // pick file with shortest filename to keep
-                            var fileToKeep = duplicates.OrderBy(f => f.Filename.Length).First();
-                            fileToKeep.State = FileEntryViewModel.FileState.keep;
-                            fileToKeep.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
-
-                            // mark the rest for deletion
-                            foreach (var file in duplicates.Except(new[] { fileToKeep }))
-                            {
-                                // mark for deletion
-                                file.State = FileEntryViewModel.FileState.delete;
-
-                                file.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
-
-                                // update progress
-                                processed++;
-                                UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
-                            }
-
-                            FileEntryViewModel.duplicateGroupIndex++;
-                        }
-                        else
-                        {
-                            // mark as unique if no duplicates
-                            fileA.State = FileEntryViewModel.FileState.unique;
-                        }
-
-                        // update progress
-                        processed++;
-                        UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
-                    }
-                }
-
-                // mark any files which have been hashed but not marked as a keep or delete (duplicate), then mark as unique
-                var hashedUniqueFiles = Files
-                .Where(f => f.State == FileEntryViewModel.FileState.hashed)
-                .ToList();
-
-                foreach (var file in hashedUniqueFiles)
-                {
-                    file.State = FileEntryViewModel.FileState.unique;
-                }
-
-                // if there were no files to compare, update progress
-                if (totalFilesInHashGroups == 0)
-                {
-                    UpdateProgressSafely(1, 1, numberOfSteps, 3);
-                }
+                // group files by hash and compare
+                CompareHashGroups(numberOfSteps);
             });
         }
         catch (OperationCanceledException)
@@ -582,14 +284,325 @@ public partial class MainViewModel : ObservableObject
         finally
         {
             // finalize operation
-            if (CurrentState == OperationState.Running)
+            EndOperation(CurrentState);
+        }
+    }
+
+    private async Task ResetUiAsync()
+    {
+        await App.Current.Dispatcher.InvokeAsync(() =>
+        {
+            Files = new ObservableCollection<FileEntryViewModel>();
+            var cvs = new CollectionViewSource { Source = Files };
+            FilesView = cvs.View;
+            FilesView.Refresh();
+        });
+    }
+
+    private List<FileInfo> CollectAllFiles()
+    {
+        var allFiles = new List<FileInfo>();
+
+        foreach (var folder in Folders)
+        {
+            // Exit immediately if cancelled
+            cts.Token.ThrowIfCancellationRequested();
+
+            pauseEvent.Wait(cts.Token);
+
+            var dirInfo = new DirectoryInfo(folder.Path);
+            var options = new EnumerationOptions()
             {
-                EndOperation();
-            }
-            else
+                IgnoreInaccessible = true,
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.System
+            };
+
+            allFiles.AddRange(dirInfo.GetFiles("*", options));
+        }
+
+        return allFiles;
+    }
+
+    private async Task<ObservableCollection<FileEntryViewModel>> CreateFileEntriesAsync(
+    List<FileInfo> allFiles,
+    SemaphoreSlim semaphore,
+    int numberOfSteps)
+    {
+        // create file entries in parallel
+        ObservableCollection<FileEntryViewModel> tempObservableFiles = [];
+        int processed = 0;
+
+        var fileTasks = allFiles.Select(async file =>
+        {
+            // Exit immediately if cancelled
+            if (cts.IsCancellationRequested)
             {
-                EndOperation(CurrentState);
+                return;
             }
+
+            await semaphore.WaitAsync(cts.Token);
+            try
+            {
+                pauseEvent.Wait(cts.Token);
+
+                var newFile = new FileEntryViewModel(file);
+                newFile.OnStateChanged = () =>
+                {
+                    OnPropertyChanged(nameof(TotalData));
+                    OnPropertyChanged(nameof(UniqueData));
+                    OnPropertyChanged(nameof(DeleteData));
+                    OnPropertyChanged(nameof(KeepData));
+                    OnPropertyChanged(nameof(TotalAfterDelete));
+                    OnPropertyChanged(nameof(KeepPercentage));
+                    OnPropertyChanged(nameof(DeletePercentage));
+                    OnPropertyChanged(nameof(UniquePercentage));
+                };
+
+                tempObservableFiles.Add(newFile);
+
+                processed++;
+                UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 0);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        // wait for all files to complete
+        await Task.WhenAll(fileTasks);
+
+        // exit if cancelled
+        cts.Token.ThrowIfCancellationRequested();
+
+        return tempObservableFiles;
+    }
+
+    private void InitializeFilesView()
+    {
+        var cvs = new CollectionViewSource { Source = Files };
+        FilesView = cvs.View;
+        FilesView.Filter = FilterByVisibleFolders;
+
+        // Default sort: by duplicate group, size (desc), and filename
+        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
+        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
+        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
+
+        // re-add folders visibility and filtering
+        foreach (var folder in Folders)
+        {
+            folder.PropertyChanged += (_, __) => FilesView.Refresh();
+        }
+
+        OnPropertyChanged(nameof(FilesView));
+
+        App.Current.Dispatcher.Invoke(() => FilesView.Refresh());
+    }
+
+    private List<IGrouping<long, FileEntryViewModel>> CreateSizeGroups()
+    {
+        return Files
+            .GroupBy(f => f.Size)
+            .Where(g => g.Count() > 1)
+            .ToList();
+    }
+
+    private async Task MarkUniqueSizeFilesAsync(
+    List<IGrouping<long, FileEntryViewModel>> sizeGroups,
+    SemaphoreSlim semaphore,
+    int numberOfSteps)
+    {
+        var uniqueSizeFiles = Files
+            .GroupBy(f => f.Size)
+            .Where(g => g.Count() == 1)
+            .SelectMany(g => g)
+            .ToList();
+
+        int processed = 0;
+
+        var tasks = uniqueSizeFiles.Select(async file =>
+        {
+            // Exit immediately if cancelled
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await semaphore.WaitAsync(cts.Token);
+            try
+            {
+                pauseEvent.Wait(cts.Token);
+                file.State = FileEntryViewModel.FileState.unique;
+
+                processed++;
+                UpdateProgressSafely(processed, uniqueSizeFiles.Count, numberOfSteps, 1);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
+
+        cts.Token.ThrowIfCancellationRequested();
+    }
+
+    private async Task HashCandidateFilesAsync(
+    List<IGrouping<long, FileEntryViewModel>> sizeGroups,
+    int numberOfSteps)
+    {
+        // flatten the groups into a single list of files to hash
+        var allFilesToHash = sizeGroups.SelectMany(g => g).ToList();
+
+        // we want a task for each disk so that each disk can be processed in parallel
+        var filesByDisk = allFilesToHash
+            .GroupBy(f => Path.GetPathRoot(f.Filename))
+            .Select(g => g.ToList())
+            .ToList();
+
+        int processed = 0;
+
+        var diskTasks = filesByDisk.Select(async diskGroup =>
+        {
+            // get disk semaphore - make sure one file reads at a time per disk
+            SemaphoreSlim diskSemaphore = new(1, 1);
+
+            // semaphore for maximum number of files being hashed at the same time
+            SemaphoreSlim filesPerDisk = new(5, 5);
+
+            var fileTasks = diskGroup.Select(async file =>
+            {
+                // Exit immediately if cancelled
+                if (cts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                await filesPerDisk.WaitAsync(cts.Token);
+                try
+                {
+                    pauseEvent.Wait(cts.Token);
+                    await file.HashAsync(
+                        SelectedAlgorithm,
+                        cts.Token,
+                        pauseEvent,
+                        diskSemaphore,
+                        FilesView);
+                }
+                catch
+                {
+                    // ignore individual file errors
+                }
+                finally
+                {
+                    Interlocked.Increment(ref processed);
+                    UpdateProgressSafely(processed, allFilesToHash.Count, numberOfSteps, 2);
+                    filesPerDisk.Release();
+                }
+            });
+
+            await Task.WhenAll(fileTasks);
+        });
+
+        await Task.WhenAll(diskTasks);
+
+        // if there were no files to hash, update progress
+        if (filesByDisk.Count == 0)
+        {
+            UpdateProgressSafely(1, 1, numberOfSteps, 2);
+        }
+
+        cts.Token.ThrowIfCancellationRequested();
+    }
+
+    private void CompareHashGroups(int numberOfSteps)
+    {
+        // group files by hash
+        var hashGroups = Files
+            .Where(f => f.State == FileEntryViewModel.FileState.hashed)
+            .GroupBy(f => f.HashString)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        int processed = 0;
+        int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
+
+        foreach (var group in hashGroups)
+        {
+            // optional: for weak hashes like CRC32, do byte-by-byte comparison
+            bool needFullCompare =
+                SelectedAlgorithm == MainViewModel.CompareAlgorithm.Crc32PlusFullCompare;
+
+            var duplicates = new List<FileEntryViewModel>();
+
+            for (int i = 0; i < group.Count(); i++)
+            {
+                var fileA = group.ElementAt(i);
+
+                if (fileA.State != FileEntryViewModel.FileState.hashed)
+                    continue;
+
+                for (int j = i + 1; j < group.Count(); j++)
+                {
+                    var fileB = group.ElementAt(j);
+
+                    if (fileB.State != FileEntryViewModel.FileState.hashed)
+                        continue;
+
+                    bool isDuplicate = true;
+                    if (needFullCompare)
+                    {
+                        isDuplicate = AreFilesIdentical(fileA.Filename, fileB.Filename);
+                    }
+
+                    if (isDuplicate)
+                    {
+                        if (!duplicates.Contains(fileA))
+                            duplicates.Add(fileA);
+
+                        duplicates.Add(fileB);
+                    }
+                }
+
+                if (duplicates.Count > 0)
+                {
+                    var fileToKeep = duplicates.OrderBy(f => f.Filename.Length).First();
+                    fileToKeep.State = FileEntryViewModel.FileState.keep;
+                    fileToKeep.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
+
+                    foreach (var file in duplicates.Except(new[] { fileToKeep }))
+                    {
+                        file.State = FileEntryViewModel.FileState.delete;
+                        file.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
+
+                        processed++;
+                        UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
+                    }
+
+                    FileEntryViewModel.duplicateGroupIndex++;
+                }
+                else
+                {
+                    fileA.State = FileEntryViewModel.FileState.unique;
+                }
+
+                processed++;
+                UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
+            }
+        }
+
+        // mark remaining hashed files as unique
+        foreach (var file in Files.Where(f => f.State == FileEntryViewModel.FileState.hashed))
+        {
+            file.State = FileEntryViewModel.FileState.unique;
+        }
+
+        if (totalFilesInHashGroups == 0)
+        {
+            UpdateProgressSafely(1, 1, numberOfSteps, 3);
         }
     }
 

@@ -1,13 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Microsoft.Win32.SafeHandles;
-using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Management;
-using System.Runtime.InteropServices;
-using System.Timers;
 
 namespace DuplicateDetector.ViewModels;
 
@@ -37,7 +32,7 @@ public partial class DiskInfo : ObservableObject
         {
             readCounter = new PerformanceCounter("LogicalDisk", "Disk Read Bytes/sec", instance);
             writeCounter = new PerformanceCounter("LogicalDisk", "Disk Write Bytes/sec", instance);
-            activeCounter = new PerformanceCounter("LogicalDisk", "% Disk Time", instance);
+            activeCounter = new PerformanceCounter("LogicalDisk", "% Idle Time", instance);
 
             // First call usually returns 0, so read once
             _ = readCounter.NextValue();
@@ -78,7 +73,7 @@ public partial class DiskInfo : ObservableObject
         }
         if (activeCounter != null)
         {
-            ActiveTime = activeCounter.NextValue();
+            ActiveTime = Math.Clamp(100.0 - activeCounter.NextValue(), 0.0, 100.0);
         }
     }
 }

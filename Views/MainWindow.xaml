@@ -65,46 +65,54 @@
         </GroupBox>
 
         <!-- stats -->
-        <GroupBox Header="Stats" Grid.Row="2">
-            <!-- Progress and Stats -->
-            <StackPanel>
-                <!-- Percentage text -->
-                <TextBlock Text="{Binding ProgressValue, StringFormat={}{0:0.00}%}"/>
+        <StackPanel Grid.Row="2">
+            <GroupBox Header="Progress">
+                <!-- Progress and Stats -->
+                <StackPanel>
+                    <!-- Percentage text -->
+                    <TextBlock Text="{Binding ProgressValue, StringFormat={}{0:0.00}%}"/>
 
-                <!-- Progress bar -->
-                <ProgressBar Value="{Binding ProgressValue}" Maximum="100"/>
+                    <!-- Progress bar -->
+                    <ProgressBar Value="{Binding ProgressValue}" Maximum="100"/>
 
-                <!-- State -->
-                <TextBlock Text="{Binding CurrentState}"/>
+                    <!-- State -->
+                    <TextBlock Text="{Binding CurrentState}"/>
 
-                <!-- ETA -->
-                <TextBlock Text="{Binding EtaText}"/>
+                    <!-- ETA -->
+                    <TextBlock Text="{Binding EtaText}"/>
 
-                <!-- Runtime -->
-                <TextBlock Text="{Binding RuntimeText}"/>
+                    <!-- Runtime -->
+                    <TextBlock Text="{Binding RuntimeText}"/>
+                </StackPanel>
+            </GroupBox>
 
-                <!-- Stats -->
-                <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}"/>
-                <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" Background="LightBlue"/>
-                <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" Background="#FFFFC0C0"/>
-                <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" Background="#FFC0FFC0"/>
-                <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}"/>
+            <!-- Stats -->
+            <GroupBox Header="Stats">
+                <StackPanel>
+                    <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}"/>
+                    <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" Background="LightBlue"/>
+                    <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" Background="#FFFFC0C0"/>
+                    <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" Background="#FFC0FFC0"/>
+                    <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}"/>
 
-                <!-- Visual stat representation -->
-                <TextBlock Text="File Breakdown:"/>
-                <Grid Height="25" HorizontalAlignment="Stretch">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="{Binding KeepPercentage, Converter={StaticResource PercentToStarConverter}}"/>
-                        <ColumnDefinition Width="{Binding DeletePercentage, Converter={StaticResource PercentToStarConverter}}"/>
-                        <ColumnDefinition Width="{Binding UniquePercentage, Converter={StaticResource PercentToStarConverter}}"/>
-                    </Grid.ColumnDefinitions>
+                    <!-- Visual stat representation -->
+                    <TextBlock Text="File Breakdown:"/>
+                    <Grid Height="25" HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding KeepPercentage, Converter={StaticResource PercentToStarConverter}}"/>
+                            <ColumnDefinition Width="{Binding DeletePercentage, Converter={StaticResource PercentToStarConverter}}"/>
+                            <ColumnDefinition Width="{Binding UniquePercentage, Converter={StaticResource PercentToStarConverter}}"/>
+                        </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Background="#FFC0FFC0"/>
-                    <Border Grid.Column="1" Background="#FFFFC0C0"/>
-                    <Border Grid.Column="2" Background="LightBlue"/>
-                </Grid>
+                        <Border Grid.Column="0" Background="#FFC0FFC0"/>
+                        <Border Grid.Column="1" Background="#FFFFC0C0"/>
+                        <Border Grid.Column="2" Background="LightBlue"/>
+                    </Grid>
+                </StackPanel>
+            </GroupBox>
 
-                <!-- Disk view -->
+            <!-- Disk view -->
+            <GroupBox Header="Disks">
                 <ListView ItemsSource="{Binding DiskViewModel.Disks}">
                     <ListView.View>
                         <GridView>
@@ -119,8 +127,8 @@
                         </GridView>
                     </ListView.View>
                 </ListView>
-            </StackPanel>
-        </GroupBox>
+            </GroupBox>
+        </StackPanel>
 
         <!-- Folder List -->
         <GroupBox Header="Folders to Scan" Grid.Row="1" Grid.Column="1" Grid.RowSpan="2">

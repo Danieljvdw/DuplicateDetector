@@ -116,14 +116,14 @@
                 <ListView ItemsSource="{Binding DiskViewModel.Disks}">
                     <ListView.View>
                         <GridView>
-                            <GridViewColumn Header="Drive" DisplayMemberBinding="{Binding DriveLetter}" Width="80"/>
-                            <GridViewColumn Header="Total" DisplayMemberBinding="{Binding TotalSpace, Converter={StaticResource ByteSizeConverter}}" Width="80"/>
-                            <GridViewColumn Header="Used" DisplayMemberBinding="{Binding UsedSpace, Converter={StaticResource ByteSizeConverter}}" Width="80"/>
-                            <GridViewColumn Header="Free" DisplayMemberBinding="{Binding FreeSpace, Converter={StaticResource ByteSizeConverter}}" Width="80"/>
-                            <GridViewColumn Header="Utilization" DisplayMemberBinding="{Binding Utilization, StringFormat={}{0:F1}%}" Width="80"/>
-                            <GridViewColumn Header="Active Time (%)" DisplayMemberBinding="{Binding ActiveTime, StringFormat={}{0:F1}%}" Width="80"/>
-                            <GridViewColumn Header="Read" DisplayMemberBinding="{Binding ReadSpeed, Converter={StaticResource ByteSizeConverter}, ConverterParameter=speed}" Width="80"/>
-                            <GridViewColumn Header="Write" DisplayMemberBinding="{Binding WriteSpeed, Converter={StaticResource ByteSizeConverter}, ConverterParameter=speed}" Width="80"/>
+                            <GridViewColumn Header="Drive" DisplayMemberBinding="{Binding DriveLetter}" Width="40"/>
+                            <GridViewColumn Header="Total" DisplayMemberBinding="{Binding TotalSpace, Converter={StaticResource ByteSizeConverter}}" Width="70"/>
+                            <GridViewColumn Header="Used" DisplayMemberBinding="{Binding UsedSpace, Converter={StaticResource ByteSizeConverter}}" Width="70"/>
+                            <GridViewColumn Header="Free" DisplayMemberBinding="{Binding FreeSpace, Converter={StaticResource ByteSizeConverter}}" Width="70"/>
+                            <GridViewColumn Header="Utilization" DisplayMemberBinding="{Binding Utilization, StringFormat={}{0:F1}%}" Width="60"/>
+                            <GridViewColumn Header="Active Time (%)" DisplayMemberBinding="{Binding ActiveTime, StringFormat={}{0:F1}%}" Width="90"/>
+                            <GridViewColumn Header="Read" DisplayMemberBinding="{Binding ReadSpeed, Converter={StaticResource ByteSizeConverter}, ConverterParameter=speed}" Width="85"/>
+                            <GridViewColumn Header="Write" DisplayMemberBinding="{Binding WriteSpeed, Converter={StaticResource ByteSizeConverter}, ConverterParameter=speed}" Width="85"/>
                         </GridView>
                     </ListView.View>
                 </ListView>

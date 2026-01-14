@@ -89,25 +89,77 @@
             <!-- Stats -->
             <GroupBox Header="Stats">
                 <StackPanel>
-                    <TextBlock Text="{Binding TotalData, Converter={StaticResource ByteSizeConverter}, StringFormat=Total: {0}}"/>
-                    <TextBlock Text="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}, StringFormat=Unique: {0}}" Background="LightBlue"/>
-                    <TextBlock Text="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Delete: {0}}" Background="#FFFFC0C0"/>
-                    <TextBlock Text="{Binding KeepData, Converter={StaticResource ByteSizeConverter}, StringFormat=To Keep: {0}}" Background="#FFC0FFC0"/>
-                    <TextBlock Text="{Binding TotalAfterDelete, Converter={StaticResource ByteSizeConverter}, StringFormat=Total After Delete: {0}}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
+                        <Label Grid.Row="0" Grid.Column="1" Content="Size"/>
+                        <Label Grid.Row="0" Grid.Column="2" Content="Files"/>
+                        
+                        <Label Grid.Row="1" Grid.Column="0" Content="Total: "/>
+                        <Label Grid.Row="1" Grid.Column="1" Content="{Binding TotalData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="1" Grid.Column="2" Content="{Binding TotalFiles}"/>
+
+                        <Label Grid.Row="2" Grid.Column="0" Content="Unique: " Background="LightBlue"/>
+                        <Label Grid.Row="2" Grid.Column="1" Content="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}}" Background="LightBlue"/>
+                        <Label Grid.Row="2" Grid.Column="2" Content="{Binding UniqueFiles}" Background="LightBlue"/>
+
+                        <Label Grid.Row="3" Grid.Column="0" Content="Delete: " Background="#FFFFC0C0"/>
+                        <Label Grid.Row="3" Grid.Column="1" Content="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}}" Background="#FFFFC0C0"/>
+                        <Label Grid.Row="3" Grid.Column="2" Content="{Binding DeleteFiles}" Background="#FFFFC0C0"/>
+
+                        <Label Grid.Row="4" Grid.Column="0" Content="Keep: " Background="#FFC0FFC0"/>
+                        <Label Grid.Row="4" Grid.Column="1" Content="{Binding KeepData, Converter={StaticResource ByteSizeConverter}}" Background="#FFC0FFC0"/>
+                        <Label Grid.Row="4" Grid.Column="2" Content="{Binding KeepFiles}" Background="#FFC0FFC0"/>
+
+                        <Label Grid.Row="5" Grid.Column="0" Content="Total After Delete: "/>
+                        <Label Grid.Row="5" Grid.Column="1" Content="{Binding TotalAfterDeleteData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="5" Grid.Column="2" Content="{Binding TotalAfterDeleteFiles}"/>
+
+                    </Grid>
+                    
                     <!-- Visual stat representation -->
                     <TextBlock Text="File Breakdown:"/>
-                    <Grid Height="25" HorizontalAlignment="Stretch">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="{Binding KeepPercentage, Converter={StaticResource PercentToStarConverter}}"/>
-                            <ColumnDefinition Width="{Binding DeletePercentage, Converter={StaticResource PercentToStarConverter}}"/>
-                            <ColumnDefinition Width="{Binding UniquePercentage, Converter={StaticResource PercentToStarConverter}}"/>
-                        </Grid.ColumnDefinitions>
+                    <DockPanel>
+                        <Label Content="Size" DockPanel.Dock="Left"/>
+                        <Grid Height="25" HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding KeepPercentageData, Converter={StaticResource PercentToStarConverter}}"/>
+                                <ColumnDefinition Width="{Binding DeletePercentageData, Converter={StaticResource PercentToStarConverter}}"/>
+                                <ColumnDefinition Width="{Binding UniquePercentageData, Converter={StaticResource PercentToStarConverter}}"/>
+                            </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Background="#FFC0FFC0"/>
-                        <Border Grid.Column="1" Background="#FFFFC0C0"/>
-                        <Border Grid.Column="2" Background="LightBlue"/>
-                    </Grid>
+                            <Border Grid.Column="0" Background="#FFC0FFC0"/>
+                            <Border Grid.Column="1" Background="#FFFFC0C0"/>
+                            <Border Grid.Column="2" Background="LightBlue"/>
+                        </Grid>
+                    </DockPanel>
+
+                    <DockPanel>
+                        <Label Content="Files" DockPanel.Dock="Left"/>
+                        <Grid Height="25" HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding KeepPercentageFiles, Converter={StaticResource PercentToStarConverter}}"/>
+                                <ColumnDefinition Width="{Binding DeletePercentageFiles, Converter={StaticResource PercentToStarConverter}}"/>
+                                <ColumnDefinition Width="{Binding UniquePercentageFiles, Converter={StaticResource PercentToStarConverter}}"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="#FFC0FFC0"/>
+                            <Border Grid.Column="1" Background="#FFFFC0C0"/>
+                            <Border Grid.Column="2" Background="LightBlue"/>
+                        </Grid>
+                    </DockPanel>
                 </StackPanel>
             </GroupBox>
 

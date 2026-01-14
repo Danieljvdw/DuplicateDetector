@@ -110,12 +110,22 @@ public partial class MainViewModel : ObservableObject
     public long UniqueData => Files.Where(f => f.State == FileEntryViewModel.FileState.unique).Sum(f => f.Size); // Total bytes of all unique files
     public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete).Sum(f => f.Size); // Bytes that would be freed by deleting duplicates
     public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size); // Bytes marked to keep (including unique + manually kept files)
-    public long TotalAfterDelete => TotalData - DeleteData; // Bytes that will remain after deleting files marked for deletion
+    public long TotalAfterDeleteData => TotalData - DeleteData; // Bytes that will remain after deleting files marked for deletion
+
+    public long TotalFiles => Files.Count; // Total number of files
+    public long UniqueFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.unique); // Number of unique files
+    public long DeleteFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.delete); // Number of files marked for deletion
+    public long KeepFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.keep); // Number of files marked to keep
+    public long TotalAfterDeleteFiles => Files.Count(f => f.State != FileEntryViewModel.FileState.delete); // Number of files remaining after deletion
 
     // for stacked chart displaying percentages
-    public double KeepPercentage => TotalData > 0 ? (double)KeepData / TotalData : 0;
-    public double DeletePercentage => TotalData > 0 ? (double)DeleteData / TotalData : 0;
-    public double UniquePercentage => TotalData > 0 ? (double)UniqueData / TotalData : 0;
+    public double KeepPercentageData => TotalData > 0 ? (double)KeepData / TotalData : 0;
+    public double DeletePercentageData => TotalData > 0 ? (double)DeleteData / TotalData : 0;
+    public double UniquePercentageData => TotalData > 0 ? (double)UniqueData / TotalData : 0;
+
+    public double KeepPercentageFiles => TotalFiles > 0 ? (double)KeepFiles / TotalFiles : 0;
+    public double DeletePercentageFiles => TotalFiles > 0 ? (double)DeleteFiles / TotalFiles : 0;
+    public double UniquePercentageFiles => TotalFiles > 0 ? (double)UniqueFiles / TotalFiles : 0;
 
     public DiskViewModel DiskViewModel { get; } = new DiskViewModel();
 
@@ -355,10 +365,21 @@ public partial class MainViewModel : ObservableObject
                     OnPropertyChanged(nameof(UniqueData));
                     OnPropertyChanged(nameof(DeleteData));
                     OnPropertyChanged(nameof(KeepData));
-                    OnPropertyChanged(nameof(TotalAfterDelete));
-                    OnPropertyChanged(nameof(KeepPercentage));
-                    OnPropertyChanged(nameof(DeletePercentage));
-                    OnPropertyChanged(nameof(UniquePercentage));
+                    OnPropertyChanged(nameof(TotalAfterDeleteData));
+
+                    OnPropertyChanged(nameof(TotalFiles));
+                    OnPropertyChanged(nameof(UniqueFiles));
+                    OnPropertyChanged(nameof(DeleteFiles));
+                    OnPropertyChanged(nameof(KeepFiles));
+                    OnPropertyChanged(nameof(TotalAfterDeleteFiles));
+
+                    OnPropertyChanged(nameof(KeepPercentageData));
+                    OnPropertyChanged(nameof(DeletePercentageData));
+                    OnPropertyChanged(nameof(UniquePercentageData));
+
+                    OnPropertyChanged(nameof(KeepPercentageFiles));
+                    OnPropertyChanged(nameof(DeletePercentageFiles));
+                    OnPropertyChanged(nameof(UniquePercentageFiles));
                 };
 
                 Files.Add(newFile);

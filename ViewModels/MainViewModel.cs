@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DuplicateDetector.Custom;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -45,10 +46,10 @@ public partial class MainViewModel : ObservableObject
     //============================================================
 
     // List of selected folder paths
-    [ObservableProperty] ObservableCollection<FolderEntryViewModel> folders = new();
+    [ObservableProperty] ObservableCollection<FolderEntryViewModel> folders = [];
 
     // Collection of all scanned file entries
-    [ObservableProperty] ObservableCollection<FileEntryViewModel> files = new();
+    [ObservableProperty] ThrottledObservableCollection<FileEntryViewModel> files = [];
 
     // CollectionView for sorting, grouping, and filtering
     public ICollectionView FilesView { get; set; }
@@ -251,7 +252,7 @@ public partial class MainViewModel : ObservableObject
                 int numberOfSteps = 4;
 
                 // create file entries in parallel
-                Files = await CreateFileEntriesAsync(allFiles, semaphore, numberOfSteps);
+                await CreateFileEntriesAsync(allFiles, semaphore, numberOfSteps);
 
                 // configure sorting behavior for file view
                 InitializeFilesView();
@@ -293,7 +294,8 @@ public partial class MainViewModel : ObservableObject
     {
         await App.Current.Dispatcher.InvokeAsync(() =>
         {
-            Files = new ObservableCollection<FileEntryViewModel>();
+            Files = new ThrottledObservableCollection<FileEntryViewModel>();
+            Files.BeginSuppressNotifications();
             var cvs = new CollectionViewSource { Source = Files };
             FilesView = cvs.View;
             FilesView.Refresh();
@@ -325,13 +327,12 @@ public partial class MainViewModel : ObservableObject
         return allFiles;
     }
 
-    private async Task<ObservableCollection<FileEntryViewModel>> CreateFileEntriesAsync(
+    private async Task CreateFileEntriesAsync(
     List<FileInfo> allFiles,
     SemaphoreSlim semaphore,
     int numberOfSteps)
     {
         // create file entries in parallel
-        ObservableCollection<FileEntryViewModel> tempObservableFiles = [];
         int processed = 0;
 
         var fileTasks = allFiles.Select(async file =>
@@ -360,7 +361,7 @@ public partial class MainViewModel : ObservableObject
                     OnPropertyChanged(nameof(UniquePercentage));
                 };
 
-                tempObservableFiles.Add(newFile);
+                Files.Add(newFile);
 
                 processed++;
                 UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 0);
@@ -376,8 +377,6 @@ public partial class MainViewModel : ObservableObject
 
         // exit if cancelled
         cts.Token.ThrowIfCancellationRequested();
-
-        return tempObservableFiles;
     }
 
     private void InitializeFilesView()
@@ -846,6 +845,8 @@ public partial class MainViewModel : ObservableObject
         }
         CurrentState = endState;
         pauseEvent.Set();
+
+        Files.EndSuppressNotifications();
     }
 
     // Cancels current scan or delete task

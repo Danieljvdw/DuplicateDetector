@@ -272,19 +272,20 @@ public partial class MainViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             // operation was cancelled
+            EndOperation(OperationState.Cancelled);
         }
         catch
         {
             // some other error occurred
             if (CurrentState == OperationState.Running || CurrentState == OperationState.Paused)
             {
-                CurrentState = OperationState.Error;
+                EndOperation(OperationState.Error);
             }
         }
         finally
         {
             // finalize operation
-            EndOperation(CurrentState);
+            EndOperation();
         }
     }
 
@@ -687,26 +688,20 @@ public partial class MainViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             // operation was cancelled
+            EndOperation(OperationState.Cancelled);
         }
         catch
         {
             // some other error occurred
             if (CurrentState == OperationState.Running || CurrentState == OperationState.Paused)
             {
-                CurrentState = OperationState.Error;
+                EndOperation(OperationState.Error);
             }
         }
         finally
         {
             // finalize operation
-            if (CurrentState == OperationState.Running)
-            {
-                EndOperation();
-            }
-            else
-            {
-                EndOperation(CurrentState);
-            }
+            EndOperation();
         }
     }
 
@@ -806,26 +801,20 @@ public partial class MainViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             // operation was cancelled
+            EndOperation(OperationState.Cancelled);
         }
         catch
         {
             // some other error occurred
             if (CurrentState == OperationState.Running || CurrentState == OperationState.Paused)
             {
-                CurrentState = OperationState.Error;
+                EndOperation(OperationState.Error);
             }
         }
         finally
         {
             // finalize operation
-            if (CurrentState == OperationState.Running)
-            {
-                EndOperation();
-            }
-            else
-            {
-                EndOperation(CurrentState);
-            }
+            EndOperation();
         }
     }
 
@@ -844,6 +833,13 @@ public partial class MainViewModel : ObservableObject
 
     private void EndOperation(OperationState endState = OperationState.Completed)
     {
+        // if already in a terminal state, do nothing
+        if (CurrentState == OperationState.Cancelled || CurrentState == OperationState.Completed || CurrentState == OperationState.Error)
+        {
+            return;
+        }
+
+        // if we were cancelling, set to cancelled
         if (CurrentState == OperationState.Cancelling)
         {
             endState = OperationState.Cancelled;

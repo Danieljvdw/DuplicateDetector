@@ -331,7 +331,13 @@ public partial class MainViewModel : ObservableObject
                 AttributesToSkip = FileAttributes.System
             };
 
-            allFiles.AddRange(dirInfo.GetFiles("*", options));
+            foreach (var file in Directory.EnumerateFiles(folder.Path, "*", options))
+            {
+                cts.Token.ThrowIfCancellationRequested();
+                pauseEvent.Wait(cts.Token);
+
+                allFiles.Add(new FileInfo(file));
+            }
         }
 
         return allFiles;

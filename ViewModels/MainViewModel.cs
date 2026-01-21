@@ -322,7 +322,15 @@ public partial class MainViewModel : ObservableObject
                     processed = await CompareFile(file, compareFiles, numberOfSteps, processed);
                 }
 
+                // final progress update
                 UpdateProgressSafely(1, 1);
+
+                // show error summary if any
+                int errorFiles = Files.Where(f => f.State == FileEntryViewModel.FileState.error).Count();
+                if (errorFiles > 0)
+                {
+                    MessageBox.Show($"Errors on {errorFiles} files");
+                }
             });
         }
         catch (OperationCanceledException)

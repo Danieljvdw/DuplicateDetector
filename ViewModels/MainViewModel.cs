@@ -219,7 +219,11 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            Folders.Add(new FolderEntryViewModel(dialog.FileName));
+            // add folder to list
+            var folder = new FolderEntryViewModel(dialog.FileName);
+            Folders.Add(folder);
+            folder.PropertyChanged += Folder_PropertyChanged;
+            RecalculateIdleHeader();
         }
     }
 
@@ -948,77 +952,178 @@ public partial class MainViewModel : ObservableObject
     // 🪟 UI TOGGLES & FILTERS
     //============================================================
 
-    [ObservableProperty] bool? allVisibleChecked = true;
-    partial void OnAllVisibleCheckedChanged(bool? value)
+    // Filter function to show/hide files based on folder visibility
+    private bool isUpdatingFromHeader = false;
+    private bool isUpdatingFromChildren = false;
+
+    private static bool? ComputeTriState(IEnumerable<bool> values)
     {
-        if (value.HasValue)
+        // track if any true/false found
+        bool anyTrue = false;
+        bool anyFalse = false;
+
+        // check values
+        foreach (var value in values)
         {
-            foreach (var f in Folders)
+            if (value)
             {
-                f.IsVisible = value.Value;
+                // found a true value
+                anyTrue = true;
             }
+            else
+            {
+                // found a false value
+                anyFalse = true;
+            }
+
+            // if both true and false found, return indeterminate
+            if (anyTrue && anyFalse)
+            {
+                return null;
+            }
+        }
+
+        // return final state
+        return anyTrue ? true : false;
+    }
+
+    private void UpdateAllFromHeader(bool? value, Action<FolderEntryViewModel, bool> setter, Action<bool?> setHeader)
+    {
+        // avoid recursion
+        if (isUpdatingFromChildren)
+        {
+            return;
+        }
+
+        // if indeterminate, set all to false
+        if (!value.HasValue)
+        {
+            setHeader(false);
+            return;
+        }
+
+        // update all children
+        isUpdatingFromHeader = true;
+        foreach (var f in Folders)
+        {
+            setter(f, value.Value);
+        }
+        isUpdatingFromHeader = false;
+    }
+
+    private void RecalculateHeader(Action<bool?> setHeader, Func<FolderEntryViewModel, bool> selector)
+    {
+        // avoid recursion
+        if (isUpdatingFromHeader)
+        {
+            return;
+        }
+
+        // recalculate based on children
+        isUpdatingFromChildren = true;
+        setHeader(ComputeTriState(Folders.Select(selector)));
+        isUpdatingFromChildren = false;
+    }
+
+    private void Folder_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (isUpdatingFromHeader)
+            return;
+
+        switch (e.PropertyName)
+        {
+            case nameof(FolderEntryViewModel.ShowIdle):
+                RecalculateIdleHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowHashing):
+                RecalculateHashingHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowHashed):
+                RecalculateHashedHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowKeep):
+                RecalculateKeepHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowDelete):
+                RecalculateDeleteHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowUnique):
+                RecalculateUniqueHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowDeleting):
+                RecalculateDeletingHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowDeleted):
+                RecalculateDeletedHeader();
+                break;
+            case nameof(FolderEntryViewModel.ShowError):
+                RecalculateErrorHeader();
+                break;
         }
     }
 
-    [ObservableProperty] bool? allKeepChecked = true;
-    partial void OnAllKeepCheckedChanged(bool? value)
-    {
-        if (value.HasValue)
-        {
-            foreach (var f in Folders)
-            {
-                f.ShowKeep = value.Value;
-            }
-        }
-    }
+    [ObservableProperty] bool? allIdleChecked = true;
+    partial void OnAllIdleCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowIdle = v, v => AllIdleChecked = v);
 
-    [ObservableProperty] bool? allDeleteChecked = true;
-    partial void OnAllDeleteCheckedChanged(bool? value)
-    {
-        if (value.HasValue)
-        {
-            foreach (var f in Folders)
-            {
-                f.ShowDelete = value.Value;
-            }
-        }
-    }
-
-    [ObservableProperty] bool? allUniqueChecked = true;
-    partial void OnAllUniqueCheckedChanged(bool? value)
-    {
-        if (value.HasValue)
-        {
-            foreach (var f in Folders)
-            {
-                f.ShowUnique = value.Value;
-            }
-        }
-    }
+    private void RecalculateIdleHeader()
+        => RecalculateHeader(v => AllIdleChecked = v, f => f.ShowIdle);
 
     [ObservableProperty] bool? allHashingChecked = true;
     partial void OnAllHashingCheckedChanged(bool? value)
-    {
-        if (value.HasValue)
-        {
-            foreach (var f in Folders)
-            {
-                f.ShowHashing = value.Value;
-            }
-        }
-    }
+        => UpdateAllFromHeader(value, (f, v) => f.ShowHashing = v, v => AllHashingChecked = v);
+
+    private void RecalculateHashingHeader()
+        => RecalculateHeader(v => AllHashingChecked = v, f => f.ShowHashing);
+
+    [ObservableProperty] bool? allHashedChecked = true;
+    partial void OnAllHashedCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowHashed = v, v => AllHashedChecked = v);
+
+    private void RecalculateHashedHeader()
+        => RecalculateHeader(v => AllHashedChecked = v, f => f.ShowHashed);
+
+    [ObservableProperty] bool? allKeepChecked = true;
+    partial void OnAllKeepCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowKeep = v, v => AllKeepChecked = v);
+
+    private void RecalculateKeepHeader()
+        => RecalculateHeader(v => AllKeepChecked = v, f => f.ShowKeep);
+
+    [ObservableProperty] bool? allDeleteChecked = true;
+    partial void OnAllDeleteCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowDelete = v, v => AllDeleteChecked = v);
+
+    private void RecalculateDeleteHeader()
+        => RecalculateHeader(v => AllDeleteChecked = v, f => f.ShowDelete);
+
+    [ObservableProperty] bool? allUniqueChecked = true;
+    partial void OnAllUniqueCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowUnique = v, v => AllUniqueChecked = v);
+
+    private void RecalculateUniqueHeader()
+        => RecalculateHeader(v => AllUniqueChecked = v, f => f.ShowUnique);
+
+    [ObservableProperty] bool? allDeletingChecked = true;
+    partial void OnAllDeletingCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowDeleting = v, v => AllDeletingChecked = v);
+
+    private void RecalculateDeletingHeader()
+        => RecalculateHeader(v => AllDeletingChecked = v, f => f.ShowDeleting);
+
+    [ObservableProperty] bool? allDeletedChecked = true;
+    partial void OnAllDeletedCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowDeleted = v, v => AllDeletedChecked = v);
+
+    private void RecalculateDeletedHeader()
+        => RecalculateHeader(v => AllDeletedChecked = v, f => f.ShowDeleted);
 
     [ObservableProperty] bool? allErrorChecked = true;
     partial void OnAllErrorCheckedChanged(bool? value)
-    {
-        if (value.HasValue)
-        {
-            foreach (var f in Folders)
-            {
-                f.ShowError = value.Value;
-            }
-        }
-    }
+     => UpdateAllFromHeader(value, (f, v) => f.ShowError = v, v => AllErrorChecked = v);
+
+    private void RecalculateErrorHeader()
+        => RecalculateHeader(v => AllErrorChecked = v, f => f.ShowError);
 
     //============================================================
     // 🪄 EVENT HANDLERS & HELPERS
@@ -1053,19 +1158,17 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        // if folder is set to visible, always show
-        if (folder.IsVisible)
-        {
-            return true;
-        }
-
         // apply that folder's filters
         return f.State switch
         {
+            FileEntryViewModel.FileState.idle => folder.ShowIdle,
+            FileEntryViewModel.FileState.hashing => folder.ShowHashing,
+            FileEntryViewModel.FileState.hashed => folder.ShowHashed,
             FileEntryViewModel.FileState.keep => folder.ShowKeep,
             FileEntryViewModel.FileState.delete => folder.ShowDelete,
             FileEntryViewModel.FileState.unique => folder.ShowUnique,
-            FileEntryViewModel.FileState.hashing => folder.ShowHashing,
+            FileEntryViewModel.FileState.deleting => folder.ShowDeleting,
+            FileEntryViewModel.FileState.deleted => folder.ShowDeleted,
             FileEntryViewModel.FileState.error => folder.ShowError,
             _ => false
         };

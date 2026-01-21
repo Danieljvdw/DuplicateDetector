@@ -216,18 +216,42 @@
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
 
-                                <!-- Visible -->
+                                <!-- Idle -->
                                 <GridViewColumn>
                                     <GridViewColumn.Header>
-                                        <CheckBox Content="Visible" IsThreeState="True" IsChecked="{Binding AllVisibleChecked}"/>
+                                        <CheckBox Content="Idle" IsThreeState="True" IsChecked="{Binding AllIdleChecked}"/>
                                     </GridViewColumn.Header>
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}"/>
+                                            <CheckBox IsChecked="{Binding ShowIdle, Mode=TwoWay}"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
 
+                                <!-- Hashing -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Hashing" IsThreeState="True" IsChecked="{Binding AllHashingChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowHashing, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Hashed -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Hashed" IsThreeState="True" IsChecked="{Binding AllHashedChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowHashed, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                
                                 <!-- Keep -->
                                 <GridViewColumn>
                                     <GridViewColumn.Header>
@@ -264,14 +288,26 @@
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
 
-                                <!-- Hashing -->
+                                <!-- Deleting -->
                                 <GridViewColumn>
                                     <GridViewColumn.Header>
-                                        <CheckBox Content="Hashing" IsThreeState="True" IsChecked="{Binding AllHashingChecked}"/>
+                                        <CheckBox Content="Deleting" IsThreeState="True" IsChecked="{Binding AllDeletingChecked}"/>
                                     </GridViewColumn.Header>
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowHashing, Mode=TwoWay}"/>
+                                            <CheckBox IsChecked="{Binding ShowDeleting, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Deleted -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Deleted" IsThreeState="True" IsChecked="{Binding AllDeletedChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowDeleted, Mode=TwoWay}"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>

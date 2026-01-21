@@ -648,22 +648,33 @@ public partial class MainViewModel : ObservableObject
 
     // Deletes all files marked for deletion (moves to recycle bin)
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
-    async Task DeleteSelectedAsync()
+    async Task DeleteVisibleFilesAsync()
     {
         StartOperation();
 
         try
         {
+            // keep track of copied and failed files
+            int deleted = 0;
+            int failed = 0;
+
+            // Capture visible files
+            var visibleFiles = FilesView.Cast<FileEntryViewModel>().ToList();
+            if (visibleFiles.Count == 0)
+            {
+                MessageBox.Show("No visible files to copy.");
+                return;
+            }
+
             await Task.Run(async () =>
             {
                 // get files to delete
-                var filesToDelete = Files.Where(f => f.State == FileEntryViewModel.FileState.delete).ToList();
-                int total = filesToDelete.Count;
+                int total = visibleFiles.Count;
                 int processed = 0;
 
                 // Semaphore to limit concurrency
                 using var semaphore = new SemaphoreSlim(MaxThreads);
-                var deleteTasks = filesToDelete.Select(async file =>
+                var deleteTasks = visibleFiles.Select(async file =>
                 {
                     // Exit immediately if cancelled
                     if (cts?.IsCancellationRequested ?? true)
@@ -676,8 +687,13 @@ public partial class MainViewModel : ObservableObject
                     {
                         pauseEvent.Wait(cts.Token);
                         file.DeleteToRecycleBin();
+                        Interlocked.Increment(ref deleted);
                         Interlocked.Increment(ref processed);
                         UpdateProgressSafely(processed, total);
+                    }
+                    catch
+                    {
+                        Interlocked.Increment(ref failed);
                     }
                     finally
                     {
@@ -688,6 +704,10 @@ public partial class MainViewModel : ObservableObject
                 // wait for all deletions to complete
                 await Task.WhenAll(deleteTasks);
             });
+
+
+            // show summary
+            MessageBox.Show($"Deleted {deleted} files\nFailed to delete {failed} files");
         }
         catch (OperationCanceledException)
         {
@@ -710,7 +730,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
-    async Task CopyFilesAsync()
+    async Task CopyVisibleFilesAsync()
     {
         StartOperation();
 
@@ -1133,8 +1153,8 @@ public partial class MainViewModel : ObservableObject
     {
         // Update command availability whenever state changes
         ScanCommand.NotifyCanExecuteChanged();
-        DeleteSelectedCommand.NotifyCanExecuteChanged();
-        CopyFilesCommand.NotifyCanExecuteChanged();
+        DeleteVisibleFilesCommand.NotifyCanExecuteChanged();
+        CopyVisibleFilesCommand.NotifyCanExecuteChanged();
         AddFolderCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
         PauseCommand.NotifyCanExecuteChanged();

@@ -50,8 +50,8 @@
                 <Button Content="Resume" Command="{Binding ResumeCommand}"/>
                 <Button Content="Cancel" Command="{Binding CancelCommand}"/>
                 <Button Content="Scan" Command="{Binding ScanCommand}"/>
-                <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}"/>
-                <Button Content="Copy Visible Files" Command="{Binding CopyFilesCommand}"/>
+                <Button Content="Delete Visible Files" Command="{Binding DeleteVisibleFilesCommand}"/>
+                <Button Content="Copy Visible Files" Command="{Binding CopyVisibleFilesCommand}"/>
                 <TextBlock Text="Selected Algorithm:"/>
                 <ComboBox ItemsSource="{Binding HashingAlgorithms}" SelectedItem="{Binding SelectedHashingAlgorithm, Mode=TwoWay}" IsEnabled="{Binding CanRunOperations}">
                     <ComboBox.ItemTemplate>

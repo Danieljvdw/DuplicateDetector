@@ -292,8 +292,8 @@ public partial class MainViewModel : ObservableObject
                     // wait if paused
                     pauseEvent.Wait(cts.Token);
 
-                    // if file is not idle, then it has already been processed
-                    if (file.State != FileEntryViewModel.FileState.idle)
+                    // skip files already marked
+                    if (file.State == FileEntryViewModel.FileState.keep || file.State == FileEntryViewModel.FileState.delete || file.State == FileEntryViewModel.FileState.unique)
                     {
                         continue;
                     }
@@ -596,6 +596,8 @@ public partial class MainViewModel : ObservableObject
                         try
                         {
                             pauseEvent.Wait(cts.Token);
+
+                            // compute hash
                             await file.HashAsync(
                                 SelectedHashingAlgorithm,
                                 cts.Token,

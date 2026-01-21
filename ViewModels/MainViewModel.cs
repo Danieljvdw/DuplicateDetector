@@ -658,6 +658,16 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task DeleteVisibleFilesAsync()
     {
+        // confirm deletion
+        var restult = MessageBox.Show("Are you sure you want to delete all VISIBLE files marked for deletion? This will move them to the Recycle Bin.",
+            "Confirm Deletion",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (restult != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         StartOperation();
 
         try
@@ -740,6 +750,16 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRunOperations))]
     async Task CopyVisibleFilesAsync()
     {
+        // confirm copy all visible files
+        var result = MessageBox.Show("Are you sure you want to copy all VISIBLE files to a selected folder? The folder structure will be preserved.",
+            "Confirm Copy",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         StartOperation();
 
         try

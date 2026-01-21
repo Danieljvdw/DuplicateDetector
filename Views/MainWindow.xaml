@@ -330,9 +330,6 @@
 
                 <!-- define columns to display -->
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Size" Binding="{Binding Size, Converter={StaticResource ByteSizeConverter}}" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" IsReadOnly="True"/>
                     <DataGridTemplateColumn Header="State" Width="120" SortMemberPath="State">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -358,6 +355,9 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Size" Binding="{Binding Size, Converter={StaticResource ByteSizeConverter}}" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>

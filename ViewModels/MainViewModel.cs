@@ -317,6 +317,8 @@ public partial class MainViewModel : ObservableObject
                     // compare current file against others
                     processed = await CompareFile(file, compareFiles, numberOfSteps, processed);
                 }
+
+                UpdateProgressSafely(1, 1);
             });
         }
         catch (OperationCanceledException)

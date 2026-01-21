@@ -17,7 +17,7 @@
         <conv:ByteSizeConverter x:Key="ByteSizeConverter"/>
         <conv:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
         <conv:PercentToStarConverter x:Key="PercentToStarConverter"/>
-        
+
         <!-- Override DataGrid font to Roboto -->
         <Style TargetType="DataGrid">
             <Setter Property="FontFamily" Value="Consolas"/>
@@ -42,7 +42,7 @@
         <Menu Grid.ColumnSpan="3">
             <MenuItem Header="Help"/>
         </Menu>
-        
+
         <!-- control -->
         <GroupBox Header="Control" Grid.Row="1">
             <StackPanel>
@@ -53,7 +53,7 @@
                 <Button Content="Delete Selected" Command="{Binding DeleteSelectedCommand}"/>
                 <Button Content="Copy Visible Files" Command="{Binding CopyFilesCommand}"/>
                 <TextBlock Text="Selected Algorithm:"/>
-                <ComboBox ItemsSource="{Binding CompareAlgorithms}" SelectedItem="{Binding SelectedAlgorithm, Mode=TwoWay}">
+                <ComboBox ItemsSource="{Binding HashingAlgorithms}" SelectedItem="{Binding SelectedHashingAlgorithm, Mode=TwoWay}" IsEnabled="{Binding CanRunOperations}">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <!-- Binding here is each enum value, not the ViewModel -->
@@ -61,6 +61,12 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+                <CheckBox Content="Compare Folders" IsChecked="{Binding CompareFolders}" IsEnabled="{Binding CanRunOperations}"/>
+                <CheckBox Content="Compare Size" IsChecked="{Binding CompareSize}" IsEnabled="{Binding CanRunOperations}"/>
+                <CheckBox Content="Compare Date Modified" IsChecked="{Binding CompareDateModified}" IsEnabled="{Binding CanRunOperations}"/>
+                <CheckBox Content="Compare Filename" IsChecked="{Binding CompareFilename}" IsEnabled="{Binding CanRunOperations}"/>
+                <CheckBox Content="Compare Content" IsChecked="{Binding CompareContent}" IsEnabled="{Binding CanRunOperations}"/>
+                <CheckBox Content="Compare Hash" IsChecked="{Binding CompareHash}" IsEnabled="{Binding CanRunOperations}"/>
             </StackPanel>
         </GroupBox>
 
@@ -106,7 +112,7 @@
 
                         <Label Grid.Row="0" Grid.Column="1" Content="Size"/>
                         <Label Grid.Row="0" Grid.Column="2" Content="Files"/>
-                        
+
                         <Label Grid.Row="1" Grid.Column="0" Content="Total: "/>
                         <Label Grid.Row="1" Grid.Column="1" Content="{Binding TotalData, Converter={StaticResource ByteSizeConverter}}"/>
                         <Label Grid.Row="1" Grid.Column="2" Content="{Binding TotalFiles}"/>
@@ -128,7 +134,7 @@
                         <Label Grid.Row="5" Grid.Column="2" Content="{Binding TotalAfterDeleteFiles}"/>
 
                     </Grid>
-                    
+
                     <!-- Visual stat representation -->
                     <TextBlock Text="File Breakdown:"/>
                     <DockPanel>
@@ -257,7 +263,7 @@
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                
+
                                 <!-- Hashing -->
                                 <GridViewColumn>
                                     <GridViewColumn.Header>
@@ -269,7 +275,7 @@
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                    
+
                                 <!-- Error -->
                                 <GridViewColumn>
                                     <GridViewColumn.Header>

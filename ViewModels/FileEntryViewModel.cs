@@ -33,6 +33,10 @@ public partial class FileEntryViewModel : ObservableObject
     [ObservableProperty]
     long size;
 
+    // Last modified timestamp
+    [ObservableProperty]
+    DateTime lastModified = DateTime.MinValue;
+
     // Event invoked whenever file state changes
     public Action? OnStateChanged;
 
@@ -71,12 +75,13 @@ public partial class FileEntryViewModel : ObservableObject
     {
         Filename = info.FullName;
         Size = info.Length;
+        LastModified = info.LastWriteTimeUtc;
 
         fileToken = cts.Token;
     }
 
     // Calculates hash of the file using selected algorithm
-    public async Task HashAsync(MainViewModel.CompareAlgorithm compareAlgorithm, CancellationToken processToken, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore, ICollectionView FilesView)
+    public async Task HashAsync(MainViewModel.HashingAlgorithm hashAlgorithm, CancellationToken processToken, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore, ICollectionView FilesView)
     {
         State = FileState.hashing;
 
@@ -126,19 +131,18 @@ public partial class FileEntryViewModel : ObservableObject
                 }
 
                 // Update hash with read bytes
-                switch (compareAlgorithm)
+                switch (hashAlgorithm)
                 {
-                    case MainViewModel.CompareAlgorithm.Crc32:
-                    case MainViewModel.CompareAlgorithm.Crc32PlusFullCompare:
+                    case MainViewModel.HashingAlgorithm.Crc32:
                         crc32.Append(buffer.AsSpan(0, bytesRead));
                         break;
-                    case MainViewModel.CompareAlgorithm.MD5:
+                    case MainViewModel.HashingAlgorithm.MD5:
                         md5.TransformBlock(buffer, 0, bytesRead, null, 0);
                         break;
-                    case MainViewModel.CompareAlgorithm.SHA256:
+                    case MainViewModel.HashingAlgorithm.SHA256:
                         sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
                         break;
-                    case MainViewModel.CompareAlgorithm.SHA512:
+                    case MainViewModel.HashingAlgorithm.SHA512:
                         sha512.TransformBlock(buffer, 0, bytesRead, null, 0);
                         break;
                 }
@@ -152,21 +156,20 @@ public partial class FileEntryViewModel : ObservableObject
             }
 
             // Finalize hash computation
-            switch (compareAlgorithm)
+            switch (hashAlgorithm)
             {
-                case MainViewModel.CompareAlgorithm.Crc32:
-                case MainViewModel.CompareAlgorithm.Crc32PlusFullCompare:
+                case MainViewModel.HashingAlgorithm.Crc32:
                     hashBytes = crc32.GetCurrentHash();
                     break;
-                case MainViewModel.CompareAlgorithm.MD5:
+                case MainViewModel.HashingAlgorithm.MD5:
                     md5.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
                     hashBytes = md5.Hash!;
                     break;
-                case MainViewModel.CompareAlgorithm.SHA256:
+                case MainViewModel.HashingAlgorithm.SHA256:
                     sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
                     hashBytes = sha256.Hash!;
                     break;
-                case MainViewModel.CompareAlgorithm.SHA512:
+                case MainViewModel.HashingAlgorithm.SHA512:
                     sha512.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
                     hashBytes = sha512.Hash!;
                     break;

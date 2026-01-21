@@ -20,13 +20,10 @@ public partial class MainViewModel : ObservableObject
     //============================================================
 
     // Supported hashing / comparison algorithms
-    public enum CompareAlgorithm
+    public enum HashingAlgorithm
     {
         [Description("CRC32 (collision possible for millions of files)")]
         Crc32,
-
-        [Description("CRC32 + Full Compare (safe)")]
-        Crc32PlusFullCompare,
 
         [Description("MD5 (~1 in 10¹⁷ accidental collision)")]
         MD5,
@@ -38,8 +35,8 @@ public partial class MainViewModel : ObservableObject
         SHA512
     }
 
-    // Expose list of algorithms for UI binding
-    public static Array CompareAlgorithms => Enum.GetValues(typeof(CompareAlgorithm));
+    // Expose list of hashing algorithms for UI binding
+    public static Array HashingAlgorithms => Enum.GetValues(typeof(HashingAlgorithm));
 
     //============================================================
     // 📦 FOLDER & FILE DATA
@@ -59,11 +56,19 @@ public partial class MainViewModel : ObservableObject
     //============================================================
 
     // Currently selected hashing algorithm
-    [ObservableProperty] CompareAlgorithm selectedAlgorithm = CompareAlgorithm.SHA512;
+    [ObservableProperty] HashingAlgorithm selectedHashingAlgorithm = HashingAlgorithm.SHA512;
 
 #if false // want to enable storing hashes in file for low RAM usage
     [ObservableProperty] bool useHashFile;
 #endif
+
+    // Comparison criteria
+    [ObservableProperty] bool compareFolders = false;
+    [ObservableProperty] bool compareSize = true;
+    [ObservableProperty] bool compareDateModified = false;
+    [ObservableProperty] bool compareFilename = false;
+    [ObservableProperty] bool compareContent = false;
+    [ObservableProperty] bool compareHash = true;
 
     // Optional filter to display only certain file states
     [ObservableProperty] FileEntryViewModel.FileState? fileStateFilter = null;
@@ -97,10 +102,16 @@ public partial class MainViewModel : ObservableObject
     private ManualResetEventSlim pauseEvent = new(true); // for pausing operations
     private CancellationTokenSource cts = new CancellationTokenSource(); // For cancelling asynchronous operations
 
-    private bool CanRunOperations => CurrentState == OperationState.Idle || CurrentState == OperationState.Completed || CurrentState == OperationState.Cancelled || CurrentState == OperationState.Error; // Whether operations can be started
     private bool CanCancel => CurrentState == OperationState.Running || CurrentState == OperationState.Paused; // Whether current operation can be cancelled
     private bool CanPause => CurrentState == OperationState.Running; // Whether current operation can be paused
     private bool CanResume => CurrentState == OperationState.Paused; // Whether current operation can be resumed
+
+    public bool CanRunOperations => CurrentState == OperationState.Idle || CurrentState == OperationState.Completed || CurrentState == OperationState.Cancelled || CurrentState == OperationState.Error; // Whether operations can be started
+
+    partial void OnCurrentStateChanged(OperationState oldValue, OperationState newValue)
+    {
+        OnPropertyChanged(nameof(CanRunOperations));
+    }
 
     //============================================================
     // 🧮 STATISTICS
@@ -259,7 +270,7 @@ public partial class MainViewModel : ObservableObject
                 var allFiles = CollectAllFiles();
 
                 // total files to process
-                int numberOfSteps = 4;
+                int numberOfSteps = 2;
 
                 // create file entries in parallel
                 await CreateFileEntriesAsync(allFiles, semaphore, numberOfSteps);
@@ -267,17 +278,45 @@ public partial class MainViewModel : ObservableObject
                 // configure sorting behavior for file view
                 InitializeFilesView();
 
-                // create groups of files with same size
-                var sizeGroups = CreateSizeGroups();
+                int processed = 1;
 
-                // mark files with unique sizes as unique
-                await MarkUniqueSizeFilesAsync(sizeGroups, semaphore, numberOfSteps);
+                foreach (var file in Files)
+                {
+                    // exit immediately if cancelled
+                    cts.Token.ThrowIfCancellationRequested();
 
-                // hash all candidate files in parallel
-                await HashCandidateFilesAsync(sizeGroups, numberOfSteps);
+                    // wait if paused
+                    pauseEvent.Wait(cts.Token);
 
-                // group files by hash and compare
-                CompareHashGroups(numberOfSteps);
+                    // if file is not idle, then it has already been processed
+                    if (file.State != FileEntryViewModel.FileState.idle)
+                    {
+                        continue;
+                    }
+
+                    // get list of files to compare against
+                    List<FileEntryViewModel> compareFiles = Files.Where(f => f != file && f.State != FileEntryViewModel.FileState.unique).ToList();
+
+                    // if we are comparing folders, we don't care if there are duplicates in the same folder, we are comparing accross folders
+                    if (CompareFolders)
+                    {
+                        // find folder of current file
+                        var fileFolder = Folders.FirstOrDefault(f => file.Filename.StartsWith(f.Path, StringComparison.OrdinalIgnoreCase));
+
+                        // exclude files from the same folder which is to be compared
+                        if (fileFolder != null)
+                        {
+                            compareFiles = compareFiles.Where(f =>
+                            {
+                                var compareFileFolder = Folders.FirstOrDefault(ff => f.Filename.StartsWith(ff.Path, StringComparison.OrdinalIgnoreCase));
+                                return compareFileFolder != fileFolder;
+                            }).ToList();
+                        }
+                    }
+
+                    // compare current file against others
+                    processed = await CompareFile(file, compareFiles, numberOfSteps, processed);
+                }
             });
         }
         catch (OperationCanceledException)
@@ -304,6 +343,7 @@ public partial class MainViewModel : ObservableObject
     {
         await App.Current.Dispatcher.InvokeAsync(() =>
         {
+            // clear existing files and reset view
             Files = new ThrottledObservableCollection<FileEntryViewModel>();
             Files.BeginSuppressNotifications();
             var cvs = new CollectionViewSource { Source = Files };
@@ -428,240 +468,172 @@ public partial class MainViewModel : ObservableObject
         App.Current.Dispatcher.Invoke(() => FilesView.Refresh());
     }
 
-    private List<IGrouping<long, FileEntryViewModel>> CreateSizeGroups()
+    private async Task<int> CompareFile(FileEntryViewModel file, List<FileEntryViewModel> files, int numberOfSteps, int processed)
     {
-        return Files
-            .GroupBy(f => f.Size)
-            .Where(g => g.Count() > 1)
-            .ToList();
-    }
+        // Exclude self just in case the caller didn't
+        var candidates = files.Where(f => f != file).ToList();
 
-    private async Task MarkUniqueSizeFilesAsync(
-    List<IGrouping<long, FileEntryViewModel>> sizeGroups,
-    SemaphoreSlim semaphore,
-    int numberOfSteps)
-    {
-        var uniqueSizeFiles = Files
-            .GroupBy(f => f.Size)
-            .Where(g => g.Count() == 1)
-            .SelectMany(g => g)
-            .ToList();
-
-        int processed = 0;
-
-        var tasks = uniqueSizeFiles.Select(async file =>
+        // compare size if requested
+        if (CompareSize)
         {
-            // Exit immediately if cancelled
-            if (cts.IsCancellationRequested)
-            {
-                return;
-            }
+            candidates = candidates.Where(f => f.Size == file.Size).ToList();
+        }
 
-            await semaphore.WaitAsync(cts.Token);
-            try
-            {
-                pauseEvent.Wait(cts.Token);
-                file.State = FileEntryViewModel.FileState.unique;
-
-                processed++;
-                UpdateProgressSafely(processed, uniqueSizeFiles.Count, numberOfSteps, 1);
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        });
-
-        await Task.WhenAll(tasks);
-
-        cts.Token.ThrowIfCancellationRequested();
-    }
-
-    private async Task HashCandidateFilesAsync(
-    List<IGrouping<long, FileEntryViewModel>> sizeGroups,
-    int numberOfSteps)
-    {
-        // flatten the groups into a single list of files to hash
-        var allFilesToHash = sizeGroups.SelectMany(g => g).ToList();
-
-        // we want a task for each disk so that each disk can be processed in parallel
-        var filesByDisk = allFilesToHash
-            .GroupBy(f => Path.GetPathRoot(f.Filename))
-            .Select(g => g.ToList())
-            .ToList();
-
-        int processed = 0;
-
-        var diskTasks = filesByDisk.Select(async diskGroup =>
+        // compare date modified if requested
+        if (CompareDateModified)
         {
-            // get disk semaphore - make sure one file reads at a time per disk
-            SemaphoreSlim diskSemaphore = new(1, 1);
+            candidates = candidates.Where(f => f.LastModified == file.LastModified).ToList();
+        }
 
-            // semaphore for maximum number of files being hashed at the same time
-            SemaphoreSlim filesPerDisk = new(5, 5);
+        // compare filename if requested
+        if (CompareFilename)
+        {
+            candidates = candidates.Where(f => string.Equals(Path.GetFileName(f.Filename), Path.GetFileName(file.Filename), StringComparison.OrdinalIgnoreCase)).ToList();
+        }
 
-            var fileTasks = diskGroup.Select(async file =>
+        // compare content if requested
+        if (CompareContent)
+        {
+            // remove files with different content due to differences in size
+            candidates = candidates.Where(f => f.Size == file.Size).ToList();
+
+            foreach (var candidate in candidates)
             {
                 // Exit immediately if cancelled
-                if (cts.IsCancellationRequested)
-                {
-                    return;
-                }
+                cts.Token.ThrowIfCancellationRequested();
 
-                await filesPerDisk.WaitAsync(cts.Token);
-                try
+                // wait if paused
+                pauseEvent.Wait(cts.Token);
+
+                // detemine if contents match
+                using var fs1 = new FileStream(file.Filename, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var fs2 = new FileStream(candidate.Filename, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+                while (true)
                 {
+                    // Exit immediately if cancelled
+                    cts.Token.ThrowIfCancellationRequested();
+
+                    // wait if paused
                     pauseEvent.Wait(cts.Token);
-                    await file.HashAsync(
-                        SelectedAlgorithm,
-                        cts.Token,
-                        pauseEvent,
-                        diskSemaphore,
-                        FilesView);
-                }
-                catch
-                {
-                    // ignore individual file errors
-                }
-                finally
-                {
-                    Interlocked.Increment(ref processed);
-                    UpdateProgressSafely(processed, allFilesToHash.Count, numberOfSteps, 2);
-                    filesPerDisk.Release();
-                }
-            });
 
-            await Task.WhenAll(fileTasks);
-        });
+                    // read chunks
+                    byte[] buffer1 = new byte[8192];
+                    byte[] buffer2 = new byte[8192];
+                    int bytesRead1 = await fs1.ReadAsync(buffer1, 0, buffer1.Length, cts.Token);
+                    int bytesRead2 = await fs2.ReadAsync(buffer2, 0, buffer2.Length, cts.Token);
 
-        await Task.WhenAll(diskTasks);
-
-        // if there were no files to hash, update progress
-        if (filesByDisk.Count == 0)
-        {
-            UpdateProgressSafely(1, 1, numberOfSteps, 2);
-        }
-
-        cts.Token.ThrowIfCancellationRequested();
-    }
-
-    private void CompareHashGroups(int numberOfSteps)
-    {
-        // group files by hash
-        var hashGroups = Files
-            .Where(f => f.State == FileEntryViewModel.FileState.hashed)
-            .GroupBy(f => f.HashString)
-            .Where(g => g.Count() > 1)
-            .ToList();
-
-        int processed = 0;
-        int totalFilesInHashGroups = hashGroups.Sum(g => g.Count());
-
-        foreach (var group in hashGroups)
-        {
-            // optional: for weak hashes like CRC32, do byte-by-byte comparison
-            bool needFullCompare =
-                SelectedAlgorithm == MainViewModel.CompareAlgorithm.Crc32PlusFullCompare;
-
-            var duplicates = new List<FileEntryViewModel>();
-
-            for (int i = 0; i < group.Count(); i++)
-            {
-                var fileA = group.ElementAt(i);
-
-                if (fileA.State != FileEntryViewModel.FileState.hashed)
-                    continue;
-
-                for (int j = i + 1; j < group.Count(); j++)
-                {
-                    var fileB = group.ElementAt(j);
-
-                    if (fileB.State != FileEntryViewModel.FileState.hashed)
-                        continue;
-
-                    bool isDuplicate = true;
-                    if (needFullCompare)
+                    // different sizes read, files differ
+                    if (bytesRead1 != bytesRead2)
                     {
-                        isDuplicate = AreFilesIdentical(fileA.Filename, fileB.Filename);
+                        candidates.Remove(candidate);
                     }
 
-                    if (isDuplicate)
+                    // reached end of both files and all bytes matched
+                    if (bytesRead1 == 0)
                     {
-                        if (!duplicates.Contains(fileA))
-                            duplicates.Add(fileA);
-
-                        duplicates.Add(fileB);
-                    }
-                }
-
-                if (duplicates.Count > 0)
-                {
-                    var fileToKeep = duplicates.OrderBy(f => f.Filename.Length).First();
-                    fileToKeep.State = FileEntryViewModel.FileState.keep;
-                    fileToKeep.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
-
-                    foreach (var file in duplicates.Except(new[] { fileToKeep }))
-                    {
-                        file.State = FileEntryViewModel.FileState.delete;
-                        file.DuplicateGroup = FileEntryViewModel.duplicateGroupIndex;
-
-                        processed++;
-                        UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
+                        break;
                     }
 
-                    FileEntryViewModel.duplicateGroupIndex++;
+                    // compare buffers
+                    if (!buffer1.AsSpan(0, bytesRead1).SequenceEqual(buffer2.AsSpan(0, bytesRead2)))
+                    {
+                        candidates.Remove(candidate);
+                    }
                 }
-                else
-                {
-                    fileA.State = FileEntryViewModel.FileState.unique;
-                }
-
-                processed++;
-                UpdateProgressSafely(processed, totalFilesInHashGroups, numberOfSteps, 3);
             }
         }
 
-        // mark remaining hashed files as unique
-        foreach (var file in Files.Where(f => f.State == FileEntryViewModel.FileState.hashed))
+        // compare hash if requested
+        if (CompareHash)
         {
+            // remove files with different content due to differences in size
+            candidates = candidates.Where(f => f.Size == file.Size).ToList();
+
+            // if there are candidates left, compute hashes
+            if (candidates.Count != 0)
+            {
+                // flatten the groups into a single list of files to hash
+                var allFilesToHash = candidates.Concat([file]);
+
+                // we want a task for each disk so that each disk can be processed in parallel
+                var filesByDisk = allFilesToHash
+                    .GroupBy(f => Path.GetPathRoot(f.Filename))
+                    .Select(g => g.ToList())
+                    .ToList();
+
+                var diskTasks = filesByDisk.Select(async diskGroup =>
+                {
+                    // get disk semaphore - make sure one file reads at a time per disk
+                    SemaphoreSlim diskSemaphore = new(1, 1);
+
+                    // semaphore for maximum number of files being hashed at the same time
+                    SemaphoreSlim filesPerDisk = new(5, 5);
+
+                    var fileTasks = diskGroup.Select(async file =>
+                    {
+                        // Exit immediately if cancelled
+                        if (cts.IsCancellationRequested)
+                        {
+                            return;
+                        }
+
+                        await filesPerDisk.WaitAsync(cts.Token);
+                        try
+                        {
+                            pauseEvent.Wait(cts.Token);
+                            await file.HashAsync(
+                                SelectedHashingAlgorithm,
+                                cts.Token,
+                                pauseEvent,
+                                diskSemaphore,
+                                FilesView);
+                        }
+                        catch
+                        {
+                            // ignore individual file errors
+                        }
+                        finally
+                        {
+                            filesPerDisk.Release();
+                        }
+                    });
+
+                    await Task.WhenAll(fileTasks);
+                });
+
+                await Task.WhenAll(diskTasks);
+
+                // after hashing, filter candidates by matching hash
+                candidates = candidates.Where(f => file.HashString == f.HashString).ToList();
+            }
+        }
+
+        // if there are no candidates left, mark as unique and return
+        if (candidates.Count == 0)
+        {
+            // mark as unique
             file.State = FileEntryViewModel.FileState.unique;
+
+            // update progress
+            processed++;
+            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 1);
         }
-
-        if (totalFilesInHashGroups == 0)
+        else
         {
-            UpdateProgressSafely(1, 1, numberOfSteps, 3);
-        }
-    }
-
-    // Byte-by-byte comparison for final verification
-    private bool AreFilesIdentical(string file1, string file2)
-    {
-        // quick length check
-        using var fs1 = File.OpenRead(file1);
-        using var fs2 = File.OpenRead(file2);
-
-        if (fs1.Length != fs2.Length)
-        {
-            return false;
-        }
-
-        // byte-by-byte comparison
-        int b1, b2;
-        do
-        {
-            b1 = fs1.ReadByte();
-            b2 = fs2.ReadByte();
-
-            // if bytes differ, files are not identical
-            if (b1 != b2)
+            // mark current file as keep, others as delete
+            file.State = FileEntryViewModel.FileState.keep;
+            foreach (var match in candidates)
             {
-                return false;
+                match.State = FileEntryViewModel.FileState.delete;
             }
 
-            // continue until end of file
-        } while (b1 != -1);
+            // update progress
+            processed++;
+            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 1);
+        }
 
-        return true;
+        return processed;
     }
 
     //============================================================

@@ -83,6 +83,12 @@ public partial class FileEntryViewModel : ObservableObject
     // Calculates hash of the file using selected algorithm
     public async Task HashAsync(MainViewModel.HashingAlgorithm hashAlgorithm, CancellationToken processToken, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore, ICollectionView FilesView)
     {
+        // Skip if already hashed
+        if (HashString != null)
+        {
+            return;
+        }
+
         State = FileState.hashing;
 
         await App.Current.Dispatcher.InvokeAsync(() =>

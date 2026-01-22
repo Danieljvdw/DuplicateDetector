@@ -270,11 +270,11 @@ public partial class MainViewModel : ObservableObject
                 // semaphore to limit concurrency
                 var semaphore = new SemaphoreSlim(MaxThreads);
 
-                // populate file list
-                var allFiles = CollectAllFiles();
-
                 // total files to process
-                int numberOfSteps = 2;
+                int numberOfSteps = 3;
+
+                // populate file list
+                var allFiles = CollectAllFiles(numberOfSteps);
 
                 // create file entries in parallel
                 await CreateFileEntriesAsync(allFiles, semaphore, numberOfSteps);
@@ -366,31 +366,43 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
-    private List<FileInfo> CollectAllFiles()
+    private List<FileInfo> CollectAllFiles(int numberOfSteps)
     {
+        // collect all files from selected folders
         var allFiles = new List<FileInfo>();
 
+        var options = new EnumerationOptions()
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.System
+        };
+
+        // first, count total number of files for progress tracking
+        int numberOfFiles = 0;
+        foreach (var folder in Folders)
+        {
+            numberOfFiles += Directory.EnumerateFiles(folder.Path, "*", options).Count();
+        }
+
+        // now, collect files with progress updates
         foreach (var folder in Folders)
         {
             // Exit immediately if cancelled
             cts.Token.ThrowIfCancellationRequested();
 
+            // wait if paused
             pauseEvent.Wait(cts.Token);
 
-            var dirInfo = new DirectoryInfo(folder.Path);
-            var options = new EnumerationOptions()
-            {
-                IgnoreInaccessible = true,
-                RecurseSubdirectories = true,
-                AttributesToSkip = FileAttributes.System
-            };
-
+            // collect files
             foreach (var file in Directory.EnumerateFiles(folder.Path, "*", options))
             {
                 cts.Token.ThrowIfCancellationRequested();
                 pauseEvent.Wait(cts.Token);
 
                 allFiles.Add(new FileInfo(file));
+
+                UpdateProgressSafely(allFiles.Count, numberOfFiles, numberOfSteps, 0);
             }
         }
 
@@ -445,7 +457,7 @@ public partial class MainViewModel : ObservableObject
                 Files.Add(newFile);
 
                 processed++;
-                UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 0);
+                UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 1);
             }
             finally
             {
@@ -633,7 +645,7 @@ public partial class MainViewModel : ObservableObject
 
             // update progress
             processed++;
-            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 1);
+            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
         }
         else
         {
@@ -646,7 +658,7 @@ public partial class MainViewModel : ObservableObject
 
             // update progress
             processed++;
-            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 1);
+            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
         }
 
         return processed;

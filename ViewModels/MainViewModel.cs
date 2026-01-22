@@ -25,21 +25,41 @@ public partial class MainViewModel : ObservableObject
     // Supported hashing / comparison algorithms
     public enum HashingAlgorithm
     {
-        [Description("CRC32 (collision possible for millions of files)")]
+        [Description("CRC32     collision possible for millions of files")]
         Crc32,
 
-        [Description("MD5 (~1 in 10¹⁷ accidental collision)")]
+        [Description("MD5       ~1 in 10¹⁷ accidental collision")]
         MD5,
 
-        [Description("SHA256 (~1 in 10⁷⁵ accidental collision)")]
+        [Description("SHA256    ~1 in 10⁷⁵ accidental collision")]
         SHA256,
 
-        [Description("SHA512 (~1 in 10¹⁵⁰ accidental collision)")]
+        [Description("SHA512    ~1 in 10¹⁵⁰ accidental collision")]
         SHA512
     }
 
     // Expose list of hashing algorithms for UI binding
     public static Array HashingAlgorithms => Enum.GetValues(typeof(HashingAlgorithm));
+
+    public enum FolderComparisonMode
+    {
+        [Description("All                      File is compared to all files in all selected folders including sub-folders")]
+        All,
+
+        [Description("Same Folder              File is only compared to files in the same folder as itself excluding sub-folders")]
+        SameFolder,
+
+        [Description("Different Folder         File is only compared to files in different selected folders")]
+        DifferentFolder,
+
+        [Description("Same User Folder         File is only compared to files in the same user's folder including sub-folders")]
+        SameUserFolder,
+
+        [Description("Different User Folder    File is only compared to files in different user's folders including sub-folders")]
+        DifferentUserFolder
+    }
+
+    public static Array FolderComparisonModes => Enum.GetValues(typeof(FolderComparisonMode));
 
     //============================================================
     // 📦 FOLDER & FILE DATA
@@ -82,19 +102,21 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] bool useHashFile;
 #endif
 
+    // Whether to compare files only across different folders
+    [ObservableProperty] FolderComparisonMode selectedFolderComparisonMode = FolderComparisonMode.All;
+
+    partial void OnSelectedFolderComparisonModeChanged(FolderComparisonMode oldValue, FolderComparisonMode newValue)
+    {
+        Properties.UserSettings.Default.FolderComparisonMode = newValue.ToString();
+        Properties.UserSettings.Default.Save();
+    }
+
     // Comparison criteria
-    [ObservableProperty] bool compareFolders = false;
     [ObservableProperty] bool compareSize = true;
     [ObservableProperty] bool compareDateModified = false;
     [ObservableProperty] bool compareFilename = false;
     [ObservableProperty] bool compareContent = false;
     [ObservableProperty] bool compareHash = true;
-
-    partial void OnCompareFoldersChanged(bool oldValue, bool newValue)
-    {
-        Properties.UserSettings.Default.CompareFolders = newValue;
-        Properties.UserSettings.Default.Save();
-    }
 
     partial void OnCompareSizeChanged(bool oldValue, bool newValue)
     {
@@ -235,6 +257,9 @@ public partial class MainViewModel : ObservableObject
         // load hashing algorithm
         SelectedHashingAlgorithm = Enum.TryParse<HashingAlgorithm>(Properties.UserSettings.Default.HashingAlgorithm, out var algo) ? algo : HashingAlgorithm.SHA512;
 
+        // load folder comparison mode
+        SelectedFolderComparisonMode = Enum.TryParse<FolderComparisonMode>(Properties.UserSettings.Default.FolderComparisonMode, out var mode) ? mode : FolderComparisonMode.All;
+
         // load folder list
         var savedFolders = Properties.UserSettings.Default.Folders;
         if (savedFolders != null)
@@ -254,7 +279,6 @@ public partial class MainViewModel : ObservableObject
         Folders.CollectionChanged += Folders_CollectionChanged;
 
         // load comparison settings
-        CompareFolders = Properties.UserSettings.Default.CompareFolders;
         CompareSize = Properties.UserSettings.Default.CompareSize;
         CompareDateModified = Properties.UserSettings.Default.CompareDateModified;
         CompareFilename = Properties.UserSettings.Default.CompareFilename;
@@ -389,21 +413,54 @@ public partial class MainViewModel : ObservableObject
                     // get list of files to compare against
                     List<FileEntryViewModel> compareFiles = Files.Where(f => f != file && f.State != FileEntryViewModel.FileState.unique).ToList();
 
-                    // if we are comparing folders, we don't care if there are duplicates in the same folder, we are comparing accross folders
-                    if (CompareFolders)
+                    // apply folder comparison mode
+                    switch (SelectedFolderComparisonMode)
                     {
-                        // find folder of current file
-                        var fileFolder = Folders.FirstOrDefault(f => file.Filename.StartsWith(f.Path, StringComparison.OrdinalIgnoreCase));
-
-                        // exclude files from the same folder which is to be compared
-                        if (fileFolder != null)
-                        {
-                            compareFiles = compareFiles.Where(f =>
+                        case FolderComparisonMode.All:
+                            // do not exclude any files
+                            break;
+                        case FolderComparisonMode.SameFolder:
                             {
-                                var compareFileFolder = Folders.FirstOrDefault(ff => f.Filename.StartsWith(ff.Path, StringComparison.OrdinalIgnoreCase));
-                                return compareFileFolder != fileFolder;
-                            }).ToList();
-                        }
+                                // we only want to compare against files in the same folder
+                                compareFiles = compareFiles.Where(f => Path.GetDirectoryName(f.Filename).Equals(Path.GetDirectoryName(file.Filename), StringComparison.OrdinalIgnoreCase)).ToList();
+                            }
+                            break;
+                        case FolderComparisonMode.DifferentFolder:
+                            {
+                                // we only want to compare against files in different folders
+                                compareFiles = compareFiles.Where(f => !Path.GetDirectoryName(f.Filename).Equals(Path.GetDirectoryName(file.Filename), StringComparison.OrdinalIgnoreCase)).ToList();
+                            }
+                            break;
+                        case FolderComparisonMode.SameUserFolder:
+                            {
+                                // we only want to compare against files in the same user's folder
+                                string? userFolder = Folders.FirstOrDefault(f => file.Filename.StartsWith(f.Path, StringComparison.OrdinalIgnoreCase))?.Path;
+                                if (userFolder != null)
+                                {
+                                    compareFiles = compareFiles.Where(f => f.Filename.StartsWith(userFolder, StringComparison.OrdinalIgnoreCase)).ToList();
+                                }
+                                else
+                                {
+                                    // no user folder found, so no files to compare against
+                                    compareFiles = [];
+                                }
+                            }
+                            break;
+                        case FolderComparisonMode.DifferentUserFolder:
+                            {
+                                // we only want to compare against files in different user's folders
+                                string? userFolder = Folders.FirstOrDefault(f => file.Filename.StartsWith(f.Path, StringComparison.OrdinalIgnoreCase))?.Path;
+                                if (userFolder != null)
+                                {
+                                    compareFiles = compareFiles.Where(f => !f.Filename.StartsWith(userFolder, StringComparison.OrdinalIgnoreCase)).ToList();
+                                }
+                                else
+                                {
+                                    // no user folder found, so no files to compare against
+                                    compareFiles = [];
+                                }
+                            }
+                            break;
                     }
 
                     // compare current file against others

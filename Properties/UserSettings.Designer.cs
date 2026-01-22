@@ -49,12 +49,12 @@ namespace DuplicateDetector.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool CompareFolders {
+        public string FolderComparisonMode {
             get {
-                return ((bool)(this["CompareFolders"]));
+                return ((string)(this["FolderComparisonMode"]));
             }
             set {
-                this["CompareFolders"] = value;
+                this["FolderComparisonMode"] = value;
             }
         }
         

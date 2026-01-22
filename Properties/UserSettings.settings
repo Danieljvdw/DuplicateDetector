@@ -1,5 +1,5 @@
 ﻿<?xml version='1.0' encoding='utf-8'?>
-<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="DuplicateDetector" GeneratedClassName="UserSettings">
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="DuplicateDetector.Properties" GeneratedClassName="UserSettings">
   <Profiles />
   <Settings>
     <Setting Name="HashingAlgorithm" Type="System.String" Scope="User">
@@ -8,7 +8,7 @@
     <Setting Name="Folders" Type="System.Collections.Specialized.StringCollection" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="CompareFolders" Type="System.Boolean" Scope="User">
+    <Setting Name="FolderComparisonMode" Type="System.String" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="CompareSize" Type="System.Boolean" Scope="User">

@@ -62,7 +62,14 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <CheckBox Content="Compare Folders" IsChecked="{Binding CompareFolders}" IsEnabled="{Binding CanRunOperations}"/>
+                <ComboBox ItemsSource="{Binding FolderComparisonModes}" SelectedItem="{Binding SelectedFolderComparisonMode, Mode=TwoWay}" IsEnabled="{Binding CanRunOperations}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <!-- Binding here is each enum value, not the ViewModel -->
+                            <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
                 <CheckBox Content="Compare Size" IsChecked="{Binding CompareSize}" IsEnabled="{Binding CanRunOperations}"/>
                 <CheckBox Content="Compare Date Modified" IsChecked="{Binding CompareDateModified}" IsEnabled="{Binding CanRunOperations}"/>
                 <CheckBox Content="Compare Filename" IsChecked="{Binding CompareFilename}" IsEnabled="{Binding CanRunOperations}"/>

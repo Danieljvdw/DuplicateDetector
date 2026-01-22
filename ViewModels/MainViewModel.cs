@@ -7,9 +7,11 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Numerics;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Data;
+using MessageBox = System.Windows.MessageBox;
 
 namespace DuplicateDetector.ViewModels;
 
@@ -237,7 +239,7 @@ public partial class MainViewModel : ObservableObject
         var savedFolders = Properties.UserSettings.Default.Folders;
         if (savedFolders != null)
         {
-            foreach (string path in savedFolders)
+            foreach (string? path in savedFolders)
             {
                 if (Directory.Exists(path))
                 {
@@ -558,15 +560,60 @@ public partial class MainViewModel : ObservableObject
         cts.Token.ThrowIfCancellationRequested();
     }
 
+    public static int ExplorerStyleCompare(string a, string b)
+    {
+        int ai = 0, bi = 0;
+
+        while (ai < a.Length && bi < b.Length)
+        {
+            char ca = a[ai];
+            char cb = b[bi];
+
+            // Special rule: '.' comes first
+            if (ca == '.' && cb != '.')
+                return -1;
+            if (cb == '.' && ca != '.')
+                return 1;
+
+            // Compare digits numerically if both are digits
+            if (char.IsDigit(ca) && char.IsDigit(cb))
+            {
+                int startA = ai;
+                int startB = bi;
+                while (ai < a.Length && char.IsDigit(a[ai])) ai++;
+                while (bi < b.Length && char.IsDigit(b[bi])) bi++;
+
+                var nA = BigInteger.Parse(a[startA..ai]);
+                var nB = BigInteger.Parse(b[startB..bi]);
+
+                int cmp = nA.CompareTo(nB);
+                if (cmp != 0) return cmp;
+                continue;
+            }
+
+            // Otherwise, normal case-insensitive comparison
+            int cmpChar = char.ToLower(ca).CompareTo(char.ToLower(cb));
+            if (cmpChar != 0) return cmpChar;
+
+            ai++;
+            bi++;
+        }
+
+        return a.Length.CompareTo(b.Length);
+    }
+
+
     private void InitializeFilesView()
     {
         var cvs = new CollectionViewSource { Source = Files };
         FilesView = cvs.View;
         FilesView.Filter = FilterByVisibleFolders;
 
-        // Default sort: by duplicate group, size (desc), and filename
-        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
-        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
+        // sort by filename
+        ((ListCollectionView)FilesView).CustomSort = Comparer<FileEntryViewModel>.Create((a, b) =>
+        {
+            return ExplorerStyleCompare(a.Filename, b.Filename);
+        });
 
         // re-add folders visibility and filtering
         foreach (var folder in Folders)

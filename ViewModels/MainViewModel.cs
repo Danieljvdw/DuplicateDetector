@@ -1030,6 +1030,15 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    public async Task Close()
+    {
+        Cancel();
+        while (CurrentState == OperationState.Running || CurrentState == OperationState.Paused || CurrentState == OperationState.Cancelling)
+        {
+            await Task.Delay(100);
+        }
+    }
+
     //============================================================
     // 📊 PROGRESS & ETA UPDATES
     //============================================================

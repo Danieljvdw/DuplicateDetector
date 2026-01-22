@@ -7,7 +7,8 @@
         xmlns:conv="clr-namespace:DuplicateDetector.Converters"
         mc:Ignorable="d"
         Title="Duplicate Detector" Height="800" Width="1600"
-        FontFamily="Segoe UI">
+        FontFamily="Segoe UI"
+        Closing="Window_Closing">
 
     <Window.DataContext>
         <vm:MainViewModel/>

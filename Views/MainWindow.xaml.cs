@@ -35,4 +35,13 @@ public partial class MainWindow : Window
             e.Handled = true;
         }
     }
+
+    private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    {
+        Task? task = (DataContext as MainViewModel)?.Close();
+        if (task != null)
+        {
+            await task;
+        }
+    }
 }

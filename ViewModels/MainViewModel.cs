@@ -353,9 +353,6 @@ public partial class MainViewModel : ObservableObject
 
             await Task.Run(async () =>
             {
-                // reset duplicate group index
-                FileEntryViewModel.duplicateGroupIndex = 0;
-
                 // semaphore to limit concurrency
                 var semaphore = new SemaphoreSlim(MaxThreads);
 
@@ -568,7 +565,6 @@ public partial class MainViewModel : ObservableObject
         FilesView.Filter = FilterByVisibleFolders;
 
         // Default sort: by duplicate group, size (desc), and filename
-        FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.DuplicateGroup), ListSortDirection.Ascending));
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Size), ListSortDirection.Descending));
         FilesView.SortDescriptions.Add(new SortDescription(nameof(FileEntryViewModel.Filename), ListSortDirection.Ascending));
 

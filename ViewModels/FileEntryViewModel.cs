@@ -22,9 +22,6 @@ public partial class FileEntryViewModel : ObservableObject
         error
     }
 
-    // Static counter to assign unique IDs to duplicate groups
-    public static int duplicateGroupIndex = 0;
-
     // Full file path
     [ObservableProperty]
     string filename;
@@ -61,10 +58,6 @@ public partial class FileEntryViewModel : ObservableObject
     // Hexadecimal representation of computed file hash
     [ObservableProperty]
     string? hashString = null;
-
-    // Group index for duplicate detection
-    [ObservableProperty]
-    int? duplicateGroup = null;
 
     // Default cancellation token
     public CancellationTokenSource cts = new();

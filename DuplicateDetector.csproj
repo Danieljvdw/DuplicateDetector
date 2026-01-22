@@ -22,4 +22,17 @@
     <PackageReference Include="System.Management" Version="9.0.10" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Update="Properties\UserSettings.Designer.cs">
+      <DependentUpon>UserSettings.settings</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+
+    <None Update="Properties\UserSettings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>UserSettings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
 </Project>

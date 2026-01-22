@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using DuplicateDetector.Custom;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -45,6 +46,17 @@ public partial class MainViewModel : ObservableObject
     // List of selected folder paths
     [ObservableProperty] ObservableCollection<FolderEntryViewModel> folders = [];
 
+    private void Folders_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        var sc = new StringCollection();
+
+        foreach (var path in Folders.Select(f => f.Path))
+            sc.Add(path);
+
+        Properties.UserSettings.Default.Folders = sc;
+        Properties.UserSettings.Default.Save();
+    }
+
     // Collection of all scanned file entries
     [ObservableProperty] ThrottledObservableCollection<FileEntryViewModel> files = [];
 
@@ -58,6 +70,12 @@ public partial class MainViewModel : ObservableObject
     // Currently selected hashing algorithm
     [ObservableProperty] HashingAlgorithm selectedHashingAlgorithm = HashingAlgorithm.SHA512;
 
+    partial void OnSelectedHashingAlgorithmChanged(HashingAlgorithm oldValue, HashingAlgorithm newValue)
+    {
+        Properties.UserSettings.Default.HashingAlgorithm = newValue.ToString();
+        Properties.UserSettings.Default.Save();
+    }
+
 #if false // want to enable storing hashes in file for low RAM usage
     [ObservableProperty] bool useHashFile;
 #endif
@@ -69,6 +87,42 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] bool compareFilename = false;
     [ObservableProperty] bool compareContent = false;
     [ObservableProperty] bool compareHash = true;
+
+    partial void OnCompareFoldersChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareFolders = newValue;
+        Properties.UserSettings.Default.Save();
+    }
+
+    partial void OnCompareSizeChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareSize = newValue;
+        Properties.UserSettings.Default.Save();
+    }
+
+    partial void OnCompareDateModifiedChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareDateModified = newValue;
+        Properties.UserSettings.Default.Save();
+    }
+
+    partial void OnCompareFilenameChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareFilename = newValue;
+        Properties.UserSettings.Default.Save();
+    }
+
+    partial void OnCompareContentChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareContent = newValue;
+        Properties.UserSettings.Default.Save();
+    }
+
+    partial void OnCompareHashChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareHash = newValue;
+        Properties.UserSettings.Default.Save();
+    }
 
     // Optional filter to display only certain file states
     [ObservableProperty] FileEntryViewModel.FileState? fileStateFilter = null;
@@ -166,9 +220,44 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        // load settings
+        LoadSettings();
+
         // Configure sorting behavior for file view
         var cvs = new CollectionViewSource { Source = Files };
         FilesView = cvs.View;
+    }
+
+    private void LoadSettings()
+    {
+        // load hashing algorithm
+        SelectedHashingAlgorithm = Enum.TryParse<HashingAlgorithm>(Properties.UserSettings.Default.HashingAlgorithm, out var algo) ? algo : HashingAlgorithm.SHA512;
+
+        // load folder list
+        var savedFolders = Properties.UserSettings.Default.Folders;
+        if (savedFolders != null)
+        {
+            foreach (string path in savedFolders)
+            {
+                if (Directory.Exists(path))
+                {
+                    var folder = new FolderEntryViewModel(path);
+                    Folders.Add(folder);
+                    folder.PropertyChanged += Folder_PropertyChanged;
+                }
+            }
+        }
+
+        // attach collection changed handler to save changes to Folders
+        Folders.CollectionChanged += Folders_CollectionChanged;
+
+        // load comparison settings
+        CompareFolders = Properties.UserSettings.Default.CompareFolders;
+        CompareSize = Properties.UserSettings.Default.CompareSize;
+        CompareDateModified = Properties.UserSettings.Default.CompareDateModified;
+        CompareFilename = Properties.UserSettings.Default.CompareFilename;
+        CompareContent = Properties.UserSettings.Default.CompareContent;
+        CompareHash = Properties.UserSettings.Default.CompareHash;
     }
 
     //============================================================

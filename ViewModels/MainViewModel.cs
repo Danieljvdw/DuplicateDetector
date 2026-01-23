@@ -379,9 +379,6 @@ public partial class MainViewModel : ObservableObject
 
             await Task.Run(async () =>
             {
-                // semaphore to limit concurrency
-                var semaphore = new SemaphoreSlim(MaxThreads);
-
                 // total files to process
                 int numberOfSteps = 3;
 
@@ -389,7 +386,7 @@ public partial class MainViewModel : ObservableObject
                 var allFiles = CollectAllFiles(numberOfSteps);
 
                 // create file entries in parallel
-                await CreateFileEntriesAsync(allFiles, semaphore, numberOfSteps);
+                await CreateFileEntriesAsync(allFiles, numberOfSteps);
 
                 // configure sorting behavior for file view
                 InitializeFilesView();
@@ -556,13 +553,15 @@ public partial class MainViewModel : ObservableObject
 
     private async Task CreateFileEntriesAsync(
     List<FileInfo> allFiles,
-    SemaphoreSlim semaphore,
     int numberOfSteps)
     {
         // create file entries in parallel
         int processed = 0;
 
-        var fileTasks = allFiles.Select(async file =>
+        // sort files
+        allFiles.Sort((a, b) => ExplorerStyleCompare(a.Name, b.Name));
+
+        foreach (var file in allFiles)
         {
             // Exit immediately if cancelled
             if (cts.IsCancellationRequested)
@@ -570,10 +569,11 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            await semaphore.WaitAsync(cts.Token);
+            // wait if paused
+            pauseEvent.Wait(cts.Token);
+
             try
             {
-                pauseEvent.Wait(cts.Token);
 
                 var newFile = new FileEntryViewModel(file);
                 newFile.OnStateChanged = () =>
@@ -604,14 +604,11 @@ public partial class MainViewModel : ObservableObject
                 processed++;
                 UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 1);
             }
-            finally
+            catch
             {
-                semaphore.Release();
+                // error, not sure, maybe just silently ignore?
             }
-        });
-
-        // wait for all files to complete
-        await Task.WhenAll(fileTasks);
+        }
 
         // exit if cancelled
         cts.Token.ThrowIfCancellationRequested();

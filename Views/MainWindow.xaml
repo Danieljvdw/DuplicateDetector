@@ -396,7 +396,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="Filename" Binding="{Binding Filename}" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Size" Binding="{Binding Size, Converter={StaticResource ByteSizeConverter}}" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Size" Binding="{Binding SizeString}" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Hash" Binding="{Binding HashString}" IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>

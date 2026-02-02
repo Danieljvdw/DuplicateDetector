@@ -78,6 +78,9 @@ public partial class FileEntryViewModel : ObservableObject
     [ObservableProperty]
     Brush backgroundBrush = Brushes.Transparent;
 
+    // Formatted string representation of file size
+    public string SizeString => FormatBytes(Size);
+
     // Constructor initializes from FileInfo
     public FileEntryViewModel(FileInfo info)
     {
@@ -220,5 +223,22 @@ public partial class FileEntryViewModel : ObservableObject
         State = FileState.deleting;
         FileSystem.DeleteFile(Filename, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
         State = FileState.deleted;
+    }
+
+    // Formats byte size into human-readable string - same as in ByteSizeConverter
+    private static string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+
+        // Round to two decimals for readability
+        return $"{len:0.##} {sizes[order]}";
     }
 }

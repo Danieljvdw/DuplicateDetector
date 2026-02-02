@@ -77,6 +77,17 @@ public partial class MainViewModel : ObservableObject
 
         Properties.UserSettings.Default.Folders = sc;
         Properties.UserSettings.Default.Save();
+
+        // recalculate all headers as a folder has been added/removed
+        RecalculateIdleHeader();
+        RecalculateHashingHeader();
+        RecalculateHashedHeader();
+        RecalculateKeepHeader();
+        RecalculateDeleteHeader();
+        RecalculateUniqueHeader();
+        RecalculateDeletingHeader();
+        RecalculateDeletedHeader();
+        RecalculateErrorHeader();
     }
 
     // Collection of all scanned file entries

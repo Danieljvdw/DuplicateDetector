@@ -3,5 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:DuplicateDetector.Converters"
              StartupUri="Views/MainWindow.xaml">
-    
+
+    <Application.Resources>
+        <!-- File state row colors -->
+        <SolidColorBrush x:Key="DeleteBrush" Color="#FFFFC0C0"/>
+        <SolidColorBrush x:Key="KeepBrush" Color="#FFC0FFC0"/>
+        <SolidColorBrush x:Key="UniqueBrush" Color="LightBlue"/>
+    </Application.Resources>
 </Application>

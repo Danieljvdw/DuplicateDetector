@@ -3,6 +3,8 @@ using Microsoft.VisualBasic.FileIO;
 using System.ComponentModel;
 using System.IO;
 using System.Security.Cryptography;
+using System.Windows;
+using System.Windows.Media;
 
 namespace DuplicateDetector.ViewModels;
 
@@ -48,6 +50,15 @@ public partial class FileEntryViewModel : ObservableObject
             if (SetProperty(ref state, value))
             {
                 OnStateChanged?.Invoke();
+
+                // Update background color based on state
+                BackgroundBrush = state switch
+                {
+                    FileState.keep => (Brush)Application.Current.Resources["KeepBrush"],
+                    FileState.delete => (Brush)Application.Current.Resources["DeleteBrush"],
+                    FileState.unique => (Brush)Application.Current.Resources["UniqueBrush"],
+                    _ => Brushes.Transparent,
+                };
             }
         }
     }
@@ -62,6 +73,10 @@ public partial class FileEntryViewModel : ObservableObject
     // Default cancellation token
     public CancellationTokenSource cts = new();
     private readonly CancellationToken fileToken = CancellationToken.None;
+
+    // Background brush for UI representation
+    [ObservableProperty]
+    Brush backgroundBrush = Brushes.Transparent;
 
     // Constructor initializes from FileInfo
     public FileEntryViewModel(FileInfo info)

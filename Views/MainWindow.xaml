@@ -125,17 +125,17 @@
                         <Label Grid.Row="1" Grid.Column="1" Content="{Binding TotalData, Converter={StaticResource ByteSizeConverter}}"/>
                         <Label Grid.Row="1" Grid.Column="2" Content="{Binding TotalFiles}"/>
 
-                        <Label Grid.Row="2" Grid.Column="0" Content="Unique: " Background="LightBlue"/>
-                        <Label Grid.Row="2" Grid.Column="1" Content="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}}" Background="LightBlue"/>
-                        <Label Grid.Row="2" Grid.Column="2" Content="{Binding UniqueFiles}" Background="LightBlue"/>
+                        <Label Grid.Row="2" Grid.Column="0" Content="Unique: " Background="{StaticResource UniqueBrush}"/>
+                        <Label Grid.Row="2" Grid.Column="1" Content="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource UniqueBrush}"/>
+                        <Label Grid.Row="2" Grid.Column="2" Content="{Binding UniqueFiles}" Background="{StaticResource UniqueBrush}"/>
 
-                        <Label Grid.Row="3" Grid.Column="0" Content="Delete: " Background="#FFFFC0C0"/>
-                        <Label Grid.Row="3" Grid.Column="1" Content="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}}" Background="#FFFFC0C0"/>
-                        <Label Grid.Row="3" Grid.Column="2" Content="{Binding DeleteFiles}" Background="#FFFFC0C0"/>
+                        <Label Grid.Row="3" Grid.Column="0" Content="Delete: " Background="{StaticResource DeleteBrush}"/>
+                        <Label Grid.Row="3" Grid.Column="1" Content="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource DeleteBrush}"/>
+                        <Label Grid.Row="3" Grid.Column="2" Content="{Binding DeleteFiles}" Background="{StaticResource DeleteBrush}"/>
 
-                        <Label Grid.Row="4" Grid.Column="0" Content="Keep: " Background="#FFC0FFC0"/>
-                        <Label Grid.Row="4" Grid.Column="1" Content="{Binding KeepData, Converter={StaticResource ByteSizeConverter}}" Background="#FFC0FFC0"/>
-                        <Label Grid.Row="4" Grid.Column="2" Content="{Binding KeepFiles}" Background="#FFC0FFC0"/>
+                        <Label Grid.Row="4" Grid.Column="0" Content="Keep: " Background="{StaticResource KeepBrush}"/>
+                        <Label Grid.Row="4" Grid.Column="1" Content="{Binding KeepData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource KeepBrush}"/>
+                        <Label Grid.Row="4" Grid.Column="2" Content="{Binding KeepFiles}" Background="{StaticResource KeepBrush}"/>
 
                         <Label Grid.Row="5" Grid.Column="0" Content="Total After Delete: "/>
                         <Label Grid.Row="5" Grid.Column="1" Content="{Binding TotalAfterDeleteData, Converter={StaticResource ByteSizeConverter}}"/>
@@ -154,9 +154,9 @@
                                 <ColumnDefinition Width="{Binding UniquePercentageData, Converter={StaticResource PercentToStarConverter}}"/>
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0" Background="#FFC0FFC0"/>
-                            <Border Grid.Column="1" Background="#FFFFC0C0"/>
-                            <Border Grid.Column="2" Background="LightBlue"/>
+                            <Border Grid.Column="0" Background="{StaticResource KeepBrush}"/>
+                            <Border Grid.Column="1" Background="{StaticResource DeleteBrush}"/>
+                            <Border Grid.Column="2" Background="{StaticResource UniqueBrush}"/>
                         </Grid>
                     </DockPanel>
 
@@ -169,9 +169,9 @@
                                 <ColumnDefinition Width="{Binding UniquePercentageFiles, Converter={StaticResource PercentToStarConverter}}"/>
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0" Background="#FFC0FFC0"/>
-                            <Border Grid.Column="1" Background="#FFFFC0C0"/>
-                            <Border Grid.Column="2" Background="LightBlue"/>
+                            <Border Grid.Column="0" Background="{StaticResource KeepBrush}"/>
+                            <Border Grid.Column="1" Background="{StaticResource DeleteBrush}"/>
+                            <Border Grid.Column="2" Background="{StaticResource UniqueBrush}"/>
                         </Grid>
                     </DockPanel>
                 </StackPanel>
@@ -364,17 +364,7 @@
                 <!-- Highlight files marked for deletion in light red and keep in light green-->
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding State}" Value="delete">
-                                <Setter Property="Background" Value="#FFFFC0C0"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding State}" Value="keep">
-                                <Setter Property="Background" Value="#FFC0FFC0"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding State}" Value="unique">
-                                <Setter Property="Background" Value="LightBlue"/>
-                            </DataTrigger>
-                        </Style.Triggers>
+                        <Setter Property="Background" Value="{Binding BackgroundBrush}"/>
                     </Style>
                 </DataGrid.RowStyle>
 

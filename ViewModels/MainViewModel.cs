@@ -682,8 +682,8 @@ public partial class MainViewModel : ObservableObject
         // Exclude self just in case the caller didn't
         var candidates = files.Where(f => f != file).ToList();
 
-        // if size, content of hash is to be compared, we can immediately mark all files with unique sizes as unique without further comparison
-        if (CompareSize || CompareContent || CompareHash)
+        // if size, content of hash is to be compared and compare mode allows, we can immediately mark all files with unique sizes as unique without further comparison
+        if ((CompareSize || CompareContent || CompareHash) && SelectedFolderComparisonMode is FolderComparisonMode.All or FolderComparisonMode.SameFolder or FolderComparisonMode.SameUserFolder)
         {
             var uniqueSizeFiles = candidates
                 .GroupBy(f => f.Size)

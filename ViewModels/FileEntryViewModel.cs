@@ -1,6 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.VisualBasic.FileIO;
-using System.ComponentModel;
 using System.IO;
 using System.Security.Cryptography;
 using System.Windows;
@@ -92,7 +91,7 @@ public partial class FileEntryViewModel : ObservableObject
     }
 
     // Calculates hash of the file using selected algorithm
-    public async Task HashAsync(MainViewModel.HashingAlgorithm hashAlgorithm, CancellationToken processToken, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore, ICollectionView FilesView)
+    public async Task HashAsync(MainViewModel.HashingAlgorithm hashAlgorithm, CancellationToken processToken, ManualResetEventSlim pauseEvent, SemaphoreSlim diskSemaphore)
     {
         // Skip if already hashed
         if (HashString != null)
@@ -101,11 +100,6 @@ public partial class FileEntryViewModel : ObservableObject
         }
 
         State = FileState.hashing;
-
-        await App.Current.Dispatcher.InvokeAsync(() =>
-        {
-            FilesView.Refresh();
-        });
 
         try
         {
@@ -207,13 +201,6 @@ public partial class FileEntryViewModel : ObservableObject
         catch
         {
             State = FileState.error;
-        }
-        finally
-        {
-            await App.Current.Dispatcher.InvokeAsync(() =>
-            {
-                FilesView.Refresh();
-            });
         }
     }
 

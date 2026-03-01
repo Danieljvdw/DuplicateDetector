@@ -10,7 +10,6 @@ using System.IO;
 using System.Numerics;
 using System.Reflection;
 using System.Windows;
-using System.Windows.Data;
 using MessageBox = System.Windows.MessageBox;
 
 namespace DuplicateDetector.ViewModels;
@@ -93,8 +92,8 @@ public partial class MainViewModel : ObservableObject
     // Collection of all scanned file entries
     [ObservableProperty] ThrottledObservableCollection<FileEntryViewModel> files = [];
 
-    // CollectionView for sorting, grouping, and filtering
-    public ICollectionView FilesView { get; set; }
+    // View for the file list with sorting and filtering
+    public VirtualizedFileList FilesView { get; private set; } = new VirtualizedFileList([]);
 
     //============================================================
     // ⚙️ APP SETTINGS & PARAMETERS
@@ -257,10 +256,6 @@ public partial class MainViewModel : ObservableObject
     {
         // load settings
         LoadSettings();
-
-        // Configure sorting behavior for file view
-        var cvs = new CollectionViewSource { Source = Files };
-        FilesView = cvs.View;
     }
 
     private void LoadSettings()
@@ -349,7 +344,6 @@ public partial class MainViewModel : ObservableObject
             var folder = new FolderEntryViewModel(dialog.FileName);
             Folders.Add(folder);
             folder.PropertyChanged += Folder_PropertyChanged;
-            RecalculateIdleHeader();
         }
     }
 
@@ -358,9 +352,8 @@ public partial class MainViewModel : ObservableObject
     {
         // remove folder from list
         Folders.Remove(folder);
-
         // refresh file view
-        FilesView.Refresh();
+        OnPropertyChanged(nameof(FilesView));
     }
 
     bool IsSubfolder(string folderPath, string basePath)
@@ -400,7 +393,7 @@ public partial class MainViewModel : ObservableObject
                 await CreateFileEntriesAsync(allFiles, numberOfSteps);
 
                 // configure sorting behavior for file view
-                InitializeFilesView();
+                RefreshFilesView();
 
                 int processed = 1;
 
@@ -513,9 +506,9 @@ public partial class MainViewModel : ObservableObject
             // clear existing files and reset view
             Files = new ThrottledObservableCollection<FileEntryViewModel>();
             Files.BeginSuppressNotifications();
-            var cvs = new CollectionViewSource { Source = Files };
-            FilesView = cvs.View;
-            FilesView.Refresh();
+
+            // refresh file view
+            OnPropertyChanged(nameof(FilesView));
         });
     }
 
@@ -667,28 +660,16 @@ public partial class MainViewModel : ObservableObject
         return a.Length.CompareTo(b.Length);
     }
 
-
-    private void InitializeFilesView()
+    private void RefreshFilesView()
     {
-        var cvs = new CollectionViewSource { Source = Files };
-        FilesView = cvs.View;
-        FilesView.Filter = FilterByVisibleFolders;
+        // sort files by name using explorer-style comparison
+        var sortedFiles = Files.Where(f => FilterByVisibleFolders(f)).OrderBy(f => f.Filename, Comparer<string>.Create(ExplorerStyleCompare)).ToList();
 
-        // sort by filename
-        ((ListCollectionView)FilesView).CustomSort = Comparer<FileEntryViewModel>.Create((a, b) =>
-        {
-            return ExplorerStyleCompare(a.Filename, b.Filename);
-        });
+        // create virtualized view
+        FilesView = new VirtualizedFileList(sortedFiles);
 
-        // re-add folders visibility and filtering
-        foreach (var folder in Folders)
-        {
-            folder.PropertyChanged += (_, __) => FilesView.Refresh();
-        }
-
+        // refresh file view
         OnPropertyChanged(nameof(FilesView));
-
-        App.Current.Dispatcher.Invoke(() => FilesView.Refresh());
     }
 
     private async Task<int> CompareFile(FileEntryViewModel file, List<FileEntryViewModel> files, int numberOfSteps, int processed)
@@ -811,8 +792,7 @@ public partial class MainViewModel : ObservableObject
                                 SelectedHashingAlgorithm,
                                 cts.Token,
                                 pauseEvent,
-                                diskSemaphore,
-                                FilesView);
+                                diskSemaphore);
                         }
                         catch
                         {
@@ -1295,9 +1275,14 @@ public partial class MainViewModel : ObservableObject
 
     private void Folder_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // refresh file view
+        RefreshFilesView();
+
+        // avoid recursion
         if (isUpdatingFromHeader)
             return;
 
+        // update header based on which property changed
         switch (e.PropertyName)
         {
             case nameof(FolderEntryViewModel.ShowIdle):

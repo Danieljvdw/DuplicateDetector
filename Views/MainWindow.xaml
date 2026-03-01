@@ -349,10 +349,19 @@
             </DockPanel>
         </GroupBox>
 
-
         <!-- Files List -->
         <GroupBox Header="Files" Grid.Row="1" Grid.Column="2" Grid.RowSpan="2">
-            <DataGrid ItemsSource="{Binding FilesView}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+            <DataGrid 
+                ItemsSource="{Binding FilesView}"
+                AutoGenerateColumns="False" 
+                CanUserAddRows="False" 
+                IsReadOnly="True" 
+                EnableRowVirtualization="True" 
+                EnableColumnVirtualization="True" 
+                VirtualizingPanel.IsVirtualizing="True" 
+                VirtualizingPanel.VirtualizationMode="Recycling" 
+                ScrollViewer.CanContentScroll="True">
+                
                 <!-- Hide selection highlight colors -->
                 <DataGrid.Resources>
                     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>

@@ -28,24 +28,177 @@
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- Toolbar -->
-        <Menu Grid.ColumnSpan="3">
+        <Menu Grid.ColumnSpan="2">
             <MenuItem Header="Help"/>
         </Menu>
 
+        <!-- Folder List -->
+        <GroupBox Header="Folders to Scan" Grid.Row="1">
+            <DockPanel LastChildFill="True">
+                <!-- Add Folder Button docked to bottom -->
+                <Button DockPanel.Dock="Top"
+                 Content="Add Folder"
+                 Command="{Binding AddFolderCommand}"/>
+
+                <!-- Scrollable List of folders -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ListView ItemsSource="{Binding Folders}">
+                        <ListView.View>
+                            <GridView>
+                                <!-- Folder Path -->
+                                <GridViewColumn Header="Folder Path">
+                                    <GridViewColumn.HeaderContainerStyle>
+                                        <Style TargetType="GridViewColumnHeader">
+                                            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                        </Style>
+                                    </GridViewColumn.HeaderContainerStyle>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Path}"
+                                                TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Idle -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Idle" IsThreeState="True" IsChecked="{Binding AllIdleChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowIdle, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Hashing -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Hashing" IsThreeState="True" IsChecked="{Binding AllHashingChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowHashing, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Hashed -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Hashed" IsThreeState="True" IsChecked="{Binding AllHashedChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowHashed, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Keep -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Keep" IsThreeState="True" IsChecked="{Binding AllKeepChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowKeep, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Delete -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Delete" IsThreeState="True" IsChecked="{Binding AllDeleteChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowDelete, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Unique -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Unique" IsThreeState="True" IsChecked="{Binding AllUniqueChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowUnique, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Deleting -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Deleting" IsThreeState="True" IsChecked="{Binding AllDeletingChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowDeleting, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Deleted -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Deleted" IsThreeState="True" IsChecked="{Binding AllDeletedChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowDeleted, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Error -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Error" IsThreeState="True" IsChecked="{Binding AllErrorChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowError, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <!-- Actions -->
+                                <GridViewColumn Header="Actions">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="Remove"
+                                             Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                             CommandParameter="{Binding}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </ScrollViewer>
+            </DockPanel>
+        </GroupBox>
+
         <!-- control -->
-        <GroupBox Header="Control" Grid.Row="1">
+        <GroupBox Header="Control" Grid.Row="2">
             <StackPanel>
                 <Button Content="Pause" Command="{Binding PauseCommand}"/>
                 <Button Content="Resume" Command="{Binding ResumeCommand}"/>
@@ -79,7 +232,7 @@
         </GroupBox>
 
         <!-- stats -->
-        <StackPanel Grid.Row="2">
+        <StackPanel Grid.Row="3">
             <GroupBox Header="Progress">
                 <!-- Progress and Stats -->
                 <StackPanel>
@@ -196,161 +349,8 @@
             </GroupBox>
         </StackPanel>
 
-        <!-- Folder List -->
-        <GroupBox Header="Folders to Scan" Grid.Row="1" Grid.Column="1" Grid.RowSpan="2">
-            <DockPanel LastChildFill="True">
-                <!-- Add Folder Button docked to bottom -->
-                <Button DockPanel.Dock="Top"
-                        Content="Add Folder"
-                        Command="{Binding AddFolderCommand}"/>
-
-                <!-- Scrollable List of folders -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ListView ItemsSource="{Binding Folders}">
-                        <ListView.View>
-                            <GridView>
-                                <!-- Folder Path -->
-                                <GridViewColumn Header="Folder Path">
-                                    <GridViewColumn.HeaderContainerStyle>
-                                        <Style TargetType="GridViewColumnHeader">
-                                            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-                                        </Style>
-                                    </GridViewColumn.HeaderContainerStyle>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Path}"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Idle -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Idle" IsThreeState="True" IsChecked="{Binding AllIdleChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowIdle, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Hashing -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Hashing" IsThreeState="True" IsChecked="{Binding AllHashingChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowHashing, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Hashed -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Hashed" IsThreeState="True" IsChecked="{Binding AllHashedChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowHashed, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                
-                                <!-- Keep -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Keep" IsThreeState="True" IsChecked="{Binding AllKeepChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowKeep, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Delete -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Delete" IsThreeState="True" IsChecked="{Binding AllDeleteChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowDelete, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Unique -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Unique" IsThreeState="True" IsChecked="{Binding AllUniqueChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowUnique, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Deleting -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Deleting" IsThreeState="True" IsChecked="{Binding AllDeletingChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowDeleting, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Deleted -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Deleted" IsThreeState="True" IsChecked="{Binding AllDeletedChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowDeleted, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Error -->
-                                <GridViewColumn>
-                                    <GridViewColumn.Header>
-                                        <CheckBox Content="Error" IsThreeState="True" IsChecked="{Binding AllErrorChecked}"/>
-                                    </GridViewColumn.Header>
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding ShowError, Mode=TwoWay}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <!-- Actions -->
-                                <GridViewColumn Header="Actions">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Button Content="Remove"
-                                                    Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="{Binding}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </ScrollViewer>
-            </DockPanel>
-        </GroupBox>
-
         <!-- Files List -->
-        <GroupBox Header="Files" Grid.Row="1" Grid.Column="2" Grid.RowSpan="2">
+        <GroupBox Header="Files" Grid.Row="1" Grid.Column="1" Grid.RowSpan="3">
             <DataGrid 
                 ItemsSource="{Binding FilesView}"
                 AutoGenerateColumns="False" 
@@ -412,7 +412,7 @@
         </GroupBox>
 
         <!-- Status Bar at the bottom -->
-        <StatusBar Grid.Row="3" Grid.ColumnSpan="3">
+        <StatusBar Grid.Row="4" Grid.ColumnSpan="3">
             <TextBlock Text="{Binding Version}" />
         </StatusBar>
     </Grid>

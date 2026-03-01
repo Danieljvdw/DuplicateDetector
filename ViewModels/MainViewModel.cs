@@ -677,6 +677,22 @@ public partial class MainViewModel : ObservableObject
         // Exclude self just in case the caller didn't
         var candidates = files.Where(f => f != file).ToList();
 
+        // if size, content of hash is to be compared, we can immediately mark all files with unique sizes as unique without further comparison
+        if (CompareSize || CompareContent || CompareHash)
+        {
+            var uniqueSizeFiles = candidates
+                .GroupBy(f => f.Size)
+                .Where(g => g.Count() == 1)
+                .Select(g => g.First())
+                .ToList();
+
+            foreach (var unique in uniqueSizeFiles)
+            {
+                unique.State = FileEntryViewModel.FileState.unique;
+                processed++;
+            }
+        }
+
         // compare size if requested
         if (CompareSize)
         {

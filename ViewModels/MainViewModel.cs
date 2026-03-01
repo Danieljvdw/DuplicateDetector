@@ -562,8 +562,13 @@ public partial class MainViewModel : ObservableObject
         // create file entries in parallel
         int processed = 0;
 
-        // sort files
-        allFiles.Sort((a, b) => ExplorerStyleCompare(a.Name, b.Name));
+        // sort files - files should be sorted by explorer style compare, but also in order of selected folders (files from first selected folder come first, then second, etc)
+        var folderList = Folders.ToList();
+
+        allFiles = allFiles
+            .OrderBy(f => folderList.FindIndex(folder => f.FullName.StartsWith(folder.Path, StringComparison.OrdinalIgnoreCase)))
+            .ThenBy(f => f.Name, Comparer<string>.Create(ExplorerStyleCompare))
+            .ToList();
 
         foreach (var file in allFiles)
         {

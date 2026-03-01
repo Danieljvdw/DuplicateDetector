@@ -639,12 +639,12 @@ public partial class MainViewModel : ObservableObject
                 return 1;
 
             // Compare digits numerically if both are digits
-            if (char.IsDigit(ca) && char.IsDigit(cb))
+            if (char.IsAsciiDigit(ca) && char.IsAsciiDigit(cb))
             {
                 int startA = ai;
                 int startB = bi;
-                while (ai < a.Length && char.IsDigit(a[ai])) ai++;
-                while (bi < b.Length && char.IsDigit(b[bi])) bi++;
+                while (ai < a.Length && char.IsAsciiDigit(a[ai])) ai++;
+                while (bi < b.Length && char.IsAsciiDigit(b[bi])) bi++;
 
                 var nA = BigInteger.Parse(a[startA..ai]);
                 var nB = BigInteger.Parse(b[startB..bi]);

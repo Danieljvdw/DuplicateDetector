@@ -169,6 +169,18 @@
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
 
+                                <!-- Ignored -->
+                                <GridViewColumn>
+                                    <GridViewColumn.Header>
+                                        <CheckBox Content="Ignored" IsThreeState="True" IsChecked="{Binding AllIgnoredChecked}"/>
+                                    </GridViewColumn.Header>
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ShowIgnored, Mode=TwoWay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
                                 <!-- Error -->
                                 <GridViewColumn>
                                     <GridViewColumn.Header>
@@ -229,6 +241,10 @@
                 <CheckBox Content="Compare Filename" IsChecked="{Binding CompareFilename}" IsEnabled="{Binding CanRunOperations}"/>
                 <CheckBox Content="Compare Content" IsChecked="{Binding CompareContent}" IsEnabled="{Binding CanRunOperations}"/>
                 <CheckBox Content="Compare Hash" IsChecked="{Binding CompareHash}" IsEnabled="{Binding CanRunOperations}"/>
+                <StackPanel Orientation="Horizontal">
+                    <TextBox Text="{Binding IgnoreSize}" Width="100" IsEnabled="{Binding CanRunOperations}" Margin="0,0,5,0"/>
+                    <TextBlock Text="Ignore size (bytes, 0 = no files ignored)"/>
+                </StackPanel>
             </StackPanel>
         </GroupBox>
 
@@ -270,6 +286,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <Label Grid.Row="0" Grid.Column="1" Content="Size"/>
@@ -291,9 +308,13 @@
                         <Label Grid.Row="4" Grid.Column="1" Content="{Binding KeepData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource KeepBrush}"/>
                         <Label Grid.Row="4" Grid.Column="2" Content="{Binding KeepFiles}" Background="{StaticResource KeepBrush}"/>
 
-                        <Label Grid.Row="5" Grid.Column="0" Content="Total After Delete: "/>
-                        <Label Grid.Row="5" Grid.Column="1" Content="{Binding TotalAfterDeleteData, Converter={StaticResource ByteSizeConverter}}"/>
-                        <Label Grid.Row="5" Grid.Column="2" Content="{Binding TotalAfterDeleteFiles}"/>
+                        <Label Grid.Row="5" Grid.Column="0" Content="Other: "/>
+                        <Label Grid.Row="5" Grid.Column="1" Content="{Binding OtherData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="5" Grid.Column="2" Content="{Binding OtherFiles}"/>
+
+                        <Label Grid.Row="6" Grid.Column="0" Content="Total After Delete: "/>
+                        <Label Grid.Row="6" Grid.Column="1" Content="{Binding TotalAfterDeleteData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="6" Grid.Column="2" Content="{Binding TotalAfterDeleteFiles}"/>
 
                     </Grid>
 

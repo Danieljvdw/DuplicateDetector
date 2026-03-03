@@ -20,6 +20,7 @@ public partial class FileEntryViewModel : ObservableObject
         unique,
         deleting,
         deleted,
+        ignored,
         error
     }
 

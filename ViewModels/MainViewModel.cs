@@ -86,6 +86,7 @@ public partial class MainViewModel : ObservableObject
         RecalculateUniqueHeader();
         RecalculateDeletingHeader();
         RecalculateDeletedHeader();
+        RecalculateIgnoredHeader();
         RecalculateErrorHeader();
     }
 
@@ -127,6 +128,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] bool compareFilename = false;
     [ObservableProperty] bool compareContent = false;
     [ObservableProperty] bool compareHash = true;
+    [ObservableProperty] int ignoreSize = 0; // 0 means no size ignored, otherwise files smaller than or equal to this size in bytes are ignored
 
     partial void OnCompareSizeChanged(bool oldValue, bool newValue)
     {
@@ -155,6 +157,12 @@ public partial class MainViewModel : ObservableObject
     partial void OnCompareHashChanged(bool oldValue, bool newValue)
     {
         Properties.UserSettings.Default.CompareHash = newValue;
+        Properties.UserSettings.Default.Save();
+    }
+
+    partial void OnIgnoreSizeChanged(int oldValue, int newValue)
+    {
+        Properties.UserSettings.Default.IgnoreSize = newValue;
         Properties.UserSettings.Default.Save();
     }
 
@@ -207,15 +215,17 @@ public partial class MainViewModel : ObservableObject
 
     public long TotalData => Files.Sum(f => f.Size); // Total bytes of all files
     public long UniqueData => Files.Where(f => f.State == FileEntryViewModel.FileState.unique).Sum(f => f.Size); // Total bytes of all unique files
-    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete).Sum(f => f.Size); // Bytes that would be freed by deleting duplicates
+    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete || f.State == FileEntryViewModel.FileState.deleting || f.State == FileEntryViewModel.FileState.deleted).Sum(f => f.Size); // Bytes that would be freed by deleting duplicates
     public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size); // Bytes marked to keep (including unique + manually kept files)
+    public long OtherData => TotalData - UniqueData - DeleteData - KeepData; // Bytes of files with other states (e.g. error)
     public long TotalAfterDeleteData => TotalData - DeleteData; // Bytes that will remain after deleting files marked for deletion
 
     public long TotalFiles => Files.Count; // Total number of files
     public long UniqueFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.unique); // Number of unique files
     public long DeleteFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.delete); // Number of files marked for deletion
     public long KeepFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.keep); // Number of files marked to keep
-    public long TotalAfterDeleteFiles => Files.Count(f => f.State != FileEntryViewModel.FileState.delete); // Number of files remaining after deletion
+    public long OtherFiles => TotalFiles - UniqueFiles - DeleteFiles - KeepFiles; // Number of files with other states (e.g. error)
+    public long TotalAfterDeleteFiles => Files.Count(f => f.State != FileEntryViewModel.FileState.delete && f.State != FileEntryViewModel.FileState.deleting && f.State != FileEntryViewModel.FileState.deleted); // Number of files remaining after deletion
 
     // for stacked chart displaying percentages
     public double KeepPercentageData => TotalData > 0 ? (double)KeepData / TotalData : 0;
@@ -290,6 +300,7 @@ public partial class MainViewModel : ObservableObject
         CompareFilename = Properties.UserSettings.Default.CompareFilename;
         CompareContent = Properties.UserSettings.Default.CompareContent;
         CompareHash = Properties.UserSettings.Default.CompareHash;
+        IgnoreSize = Properties.UserSettings.Default.IgnoreSize;
     }
 
     //============================================================
@@ -391,6 +402,18 @@ public partial class MainViewModel : ObservableObject
 
                 // create file entries in parallel
                 await CreateFileEntriesAsync(allFiles, numberOfSteps);
+
+                // ignore files smaller than or equal to ignore size
+                if (IgnoreSize > 0)
+                {
+                    foreach (var file in Files)
+                    {
+                        if (file.Size <= IgnoreSize)
+                        {
+                            file.State = FileEntryViewModel.FileState.ignored;
+                        }
+                    }
+                }
 
                 // configure sorting behavior for file view
                 RefreshFilesView();
@@ -591,12 +614,14 @@ public partial class MainViewModel : ObservableObject
                     OnPropertyChanged(nameof(UniqueData));
                     OnPropertyChanged(nameof(DeleteData));
                     OnPropertyChanged(nameof(KeepData));
+                    OnPropertyChanged(nameof(OtherData));
                     OnPropertyChanged(nameof(TotalAfterDeleteData));
 
                     OnPropertyChanged(nameof(TotalFiles));
                     OnPropertyChanged(nameof(UniqueFiles));
                     OnPropertyChanged(nameof(DeleteFiles));
                     OnPropertyChanged(nameof(KeepFiles));
+                    OnPropertyChanged(nameof(OtherFiles));
                     OnPropertyChanged(nameof(TotalAfterDeleteFiles));
 
                     OnPropertyChanged(nameof(KeepPercentageData));
@@ -1330,6 +1355,9 @@ public partial class MainViewModel : ObservableObject
             case nameof(FolderEntryViewModel.ShowDeleted):
                 RecalculateDeletedHeader();
                 break;
+            case nameof(FolderEntryViewModel.ShowIgnored):
+                RecalculateIgnoredHeader();
+                break;
             case nameof(FolderEntryViewModel.ShowError):
                 RecalculateErrorHeader();
                 break;
@@ -1392,6 +1420,14 @@ public partial class MainViewModel : ObservableObject
     private void RecalculateDeletedHeader()
         => RecalculateHeader(v => AllDeletedChecked = v, f => f.ShowDeleted);
 
+    [ObservableProperty] bool? allIgnoredChecked = true;
+
+    partial void OnAllIgnoredCheckedChanged(bool? value)
+     => UpdateAllFromHeader(value, (f, v) => f.ShowIgnored = v, v => AllIgnoredChecked = v);
+
+    private void RecalculateIgnoredHeader()
+        => RecalculateHeader(v => AllIgnoredChecked = v, f => f.ShowIgnored);
+
     [ObservableProperty] bool? allErrorChecked = true;
     partial void OnAllErrorCheckedChanged(bool? value)
      => UpdateAllFromHeader(value, (f, v) => f.ShowError = v, v => AllErrorChecked = v);
@@ -1443,6 +1479,7 @@ public partial class MainViewModel : ObservableObject
             FileEntryViewModel.FileState.unique => folder.ShowUnique,
             FileEntryViewModel.FileState.deleting => folder.ShowDeleting,
             FileEntryViewModel.FileState.deleted => folder.ShowDeleted,
+            FileEntryViewModel.FileState.ignored => folder.ShowIgnored,
             FileEntryViewModel.FileState.error => folder.ShowError,
             _ => false
         };

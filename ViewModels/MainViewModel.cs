@@ -420,6 +420,22 @@ public partial class MainViewModel : ObservableObject
 
                 int processed = 1;
 
+                // mark unique files as unique if we can
+                if ((CompareSize || CompareContent || CompareHash) && !(CompareDateModified || CompareFilename) && SelectedFolderComparisonMode is FolderComparisonMode.All or FolderComparisonMode.DifferentFolder or FolderComparisonMode.DifferentUserFolder)
+                {
+                    var uniqueSizeFiles = Files
+                        .GroupBy(f => f.Size)
+                        .Where(g => g.Count() == 1)
+                        .Select(g => g.First())
+                        .ToList();
+
+                    foreach (var unique in uniqueSizeFiles)
+                    {
+                        unique.State = FileEntryViewModel.FileState.unique;
+                        processed++;
+                    }
+                }
+
                 foreach (var file in Files)
                 {
                     // exit immediately if cancelled
@@ -708,7 +724,7 @@ public partial class MainViewModel : ObservableObject
         var candidates = files.Where(f => f != file).ToList();
 
         // if size, content of hash is to be compared and compare mode allows, we can immediately mark all files with unique sizes as unique without further comparison
-        if ((CompareSize || CompareContent || CompareHash) && !(CompareDateModified || CompareFilename) && SelectedFolderComparisonMode is FolderComparisonMode.All or FolderComparisonMode.SameFolder or FolderComparisonMode.SameUserFolder)
+        if ((CompareSize || CompareContent || CompareHash) && !(CompareDateModified || CompareFilename) && SelectedFolderComparisonMode is FolderComparisonMode.SameFolder or FolderComparisonMode.SameUserFolder)
         {
             var uniqueSizeFiles = candidates
                 .GroupBy(f => f.Size)

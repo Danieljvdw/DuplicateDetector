@@ -451,7 +451,7 @@ public partial class MainViewModel : ObservableObject
                     }
 
                     // get list of files to compare against
-                    List<FileEntryViewModel> compareFiles = Files.Where(f => f != file && f.State != FileEntryViewModel.FileState.unique).ToList();
+                    List<FileEntryViewModel> compareFiles = Files.Where(f => f != file && f.State != FileEntryViewModel.FileState.unique && f.State != FileEntryViewModel.FileState.ignored).ToList();
 
                     // apply folder comparison mode
                     switch (SelectedFolderComparisonMode)

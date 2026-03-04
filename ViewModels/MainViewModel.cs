@@ -408,7 +408,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     foreach (var file in Files)
                     {
-                        if (file.Size <= IgnoreSize)
+                        if (file.Size < IgnoreSize)
                         {
                             file.State = FileEntryViewModel.FileState.ignored;
                         }

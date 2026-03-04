@@ -718,13 +718,10 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(FilesView));
     }
 
-    private async Task<int> CompareFile(FileEntryViewModel file, List<FileEntryViewModel> files, int numberOfSteps, int processed)
+    private async Task<int> CompareFile(FileEntryViewModel file, List<FileEntryViewModel> candidates, int numberOfSteps, int processed)
     {
-        // Exclude self just in case the caller didn't
-        var candidates = files.Where(f => f != file).ToList();
-
         // if size, content of hash is to be compared and compare mode allows, we can immediately mark all files with unique sizes as unique without further comparison
-        if ((CompareSize || CompareContent || CompareHash) && !(CompareDateModified || CompareFilename) && SelectedFolderComparisonMode is FolderComparisonMode.SameFolder or FolderComparisonMode.SameUserFolder)
+        if ((CompareSize || CompareContent || CompareHash) && !(CompareDateModified || CompareFilename) && SelectedFolderComparisonMode is FolderComparisonMode.All or FolderComparisonMode.SameFolder or FolderComparisonMode.SameUserFolder)
         {
             var uniqueSizeFiles = candidates
                 .GroupBy(f => f.Size)

@@ -445,7 +445,7 @@ public partial class MainViewModel : ObservableObject
                     pauseEvent.Wait(cts.Token);
 
                     // skip files already marked
-                    if (file.State == FileEntryViewModel.FileState.keep || file.State == FileEntryViewModel.FileState.delete || file.State == FileEntryViewModel.FileState.unique)
+                    if (file.State != FileEntryViewModel.FileState.idle && file.State != FileEntryViewModel.FileState.hashed)
                     {
                         continue;
                     }

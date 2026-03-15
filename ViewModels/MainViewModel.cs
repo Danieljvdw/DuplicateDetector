@@ -535,11 +535,15 @@ public partial class MainViewModel : ObservableObject
                     }
 
                     // get list of files to compare against
-                    var compareFiles = sizeIndex[file.Size]
+                    var compareFiles = new List<FileEntryViewModel>();
+                    if (CompareSize || CompareContent || CompareHash)
+                    {
+                        compareFiles = sizeIndex[file.Size]
                         .Where(f => f != file &&
                             f.State != FileEntryViewModel.FileState.unique &&
                             f.State != FileEntryViewModel.FileState.ignored)
                         .ToList();
+                    }
 
                     // apply folder comparison mode
                     switch (SelectedFolderComparisonMode)

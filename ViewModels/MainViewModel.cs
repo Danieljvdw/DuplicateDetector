@@ -214,17 +214,23 @@ public partial class MainViewModel : ObservableObject
     //============================================================
 
     public long TotalData => Files.Sum(f => f.Size); // Total bytes of all files
+    public long IdleData => Files.Where(f => f.State == FileEntryViewModel.FileState.idle).Sum(f => f.Size); // Bytes of files not yet processed
     public long UniqueData => Files.Where(f => f.State == FileEntryViewModel.FileState.unique).Sum(f => f.Size); // Total bytes of all unique files
     public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete || f.State == FileEntryViewModel.FileState.deleting || f.State == FileEntryViewModel.FileState.deleted).Sum(f => f.Size); // Bytes that would be freed by deleting duplicates
     public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size); // Bytes marked to keep (including unique + manually kept files)
-    public long OtherData => TotalData - UniqueData - DeleteData - KeepData; // Bytes of files with other states (e.g. error)
+    public long IgnoredData => Files.Where(f => f.State == FileEntryViewModel.FileState.ignored).Sum(f => f.Size); // Bytes of files ignored due to being smaller than or equal to ignore size
+    public long ErrorData => Files.Where(f => f.State == FileEntryViewModel.FileState.error).Sum(f => f.Size); // Bytes of files that had errors during processing
+    public long OtherData => TotalData - IdleData - UniqueData - DeleteData - KeepData - IgnoredData - ErrorData; // Bytes of files with other states
     public long TotalAfterDeleteData => TotalData - DeleteData; // Bytes that will remain after deleting files marked for deletion
 
     public long TotalFiles => Files.Count; // Total number of files
+    public long IdleFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.idle); // Number of files not yet processed
     public long UniqueFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.unique); // Number of unique files
     public long DeleteFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.delete); // Number of files marked for deletion
     public long KeepFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.keep); // Number of files marked to keep
-    public long OtherFiles => TotalFiles - UniqueFiles - DeleteFiles - KeepFiles; // Number of files with other states (e.g. error)
+    public long IgnoredFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.ignored); // Number of files ignored due to being smaller than or equal to ignore size
+    public long ErrorFiles => Files.Count(f => f.State == FileEntryViewModel.FileState.error); // Number of files that had errors during processing
+    public long OtherFiles => TotalFiles - IdleFiles - UniqueFiles - DeleteFiles - KeepFiles - IgnoredFiles - ErrorFiles; // Number of files with other states
     public long TotalAfterDeleteFiles => Files.Count(f => f.State != FileEntryViewModel.FileState.delete && f.State != FileEntryViewModel.FileState.deleting && f.State != FileEntryViewModel.FileState.deleted); // Number of files remaining after deletion
 
     // for stacked chart displaying percentages
@@ -730,16 +736,22 @@ public partial class MainViewModel : ObservableObject
                 newFile.OnStateChanged = () =>
                 {
                     OnPropertyChanged(nameof(TotalData));
+                    OnPropertyChanged(nameof(IdleData));
                     OnPropertyChanged(nameof(UniqueData));
                     OnPropertyChanged(nameof(DeleteData));
                     OnPropertyChanged(nameof(KeepData));
+                    OnPropertyChanged(nameof(IgnoredData));
+                    OnPropertyChanged(nameof(ErrorData));
                     OnPropertyChanged(nameof(OtherData));
                     OnPropertyChanged(nameof(TotalAfterDeleteData));
 
                     OnPropertyChanged(nameof(TotalFiles));
+                    OnPropertyChanged(nameof(IdleFiles));
                     OnPropertyChanged(nameof(UniqueFiles));
                     OnPropertyChanged(nameof(DeleteFiles));
                     OnPropertyChanged(nameof(KeepFiles));
+                    OnPropertyChanged(nameof(IgnoredFiles));
+                    OnPropertyChanged(nameof(ErrorFiles));
                     OnPropertyChanged(nameof(OtherFiles));
                     OnPropertyChanged(nameof(TotalAfterDeleteFiles));
 

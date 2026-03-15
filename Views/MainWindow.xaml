@@ -287,6 +287,9 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <Label Grid.Row="0" Grid.Column="1" Content="Size"/>
@@ -296,25 +299,37 @@
                         <Label Grid.Row="1" Grid.Column="1" Content="{Binding TotalData, Converter={StaticResource ByteSizeConverter}}"/>
                         <Label Grid.Row="1" Grid.Column="2" Content="{Binding TotalFiles}"/>
 
-                        <Label Grid.Row="2" Grid.Column="0" Content="Unique: " Background="{StaticResource UniqueBrush}"/>
-                        <Label Grid.Row="2" Grid.Column="1" Content="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource UniqueBrush}"/>
-                        <Label Grid.Row="2" Grid.Column="2" Content="{Binding UniqueFiles}" Background="{StaticResource UniqueBrush}"/>
+                        <Label Grid.Row="2" Grid.Column="0" Content="Idle: "/>
+                        <Label Grid.Row="2" Grid.Column="1" Content="{Binding IdleData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="2" Grid.Column="2" Content="{Binding IdleFiles}"/>
 
-                        <Label Grid.Row="3" Grid.Column="0" Content="Delete: " Background="{StaticResource DeleteBrush}"/>
-                        <Label Grid.Row="3" Grid.Column="1" Content="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource DeleteBrush}"/>
-                        <Label Grid.Row="3" Grid.Column="2" Content="{Binding DeleteFiles}" Background="{StaticResource DeleteBrush}"/>
+                        <Label Grid.Row="3" Grid.Column="0" Content="Unique: " Background="{StaticResource UniqueBrush}"/>
+                        <Label Grid.Row="3" Grid.Column="1" Content="{Binding UniqueData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource UniqueBrush}"/>
+                        <Label Grid.Row="3" Grid.Column="2" Content="{Binding UniqueFiles}" Background="{StaticResource UniqueBrush}"/>
 
-                        <Label Grid.Row="4" Grid.Column="0" Content="Keep: " Background="{StaticResource KeepBrush}"/>
-                        <Label Grid.Row="4" Grid.Column="1" Content="{Binding KeepData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource KeepBrush}"/>
-                        <Label Grid.Row="4" Grid.Column="2" Content="{Binding KeepFiles}" Background="{StaticResource KeepBrush}"/>
+                        <Label Grid.Row="4" Grid.Column="0" Content="Delete: " Background="{StaticResource DeleteBrush}"/>
+                        <Label Grid.Row="4" Grid.Column="1" Content="{Binding DeleteData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource DeleteBrush}"/>
+                        <Label Grid.Row="4" Grid.Column="2" Content="{Binding DeleteFiles}" Background="{StaticResource DeleteBrush}"/>
 
-                        <Label Grid.Row="5" Grid.Column="0" Content="Other: "/>
-                        <Label Grid.Row="5" Grid.Column="1" Content="{Binding OtherData, Converter={StaticResource ByteSizeConverter}}"/>
-                        <Label Grid.Row="5" Grid.Column="2" Content="{Binding OtherFiles}"/>
+                        <Label Grid.Row="5" Grid.Column="0" Content="Keep: " Background="{StaticResource KeepBrush}"/>
+                        <Label Grid.Row="5" Grid.Column="1" Content="{Binding KeepData, Converter={StaticResource ByteSizeConverter}}" Background="{StaticResource KeepBrush}"/>
+                        <Label Grid.Row="5" Grid.Column="2" Content="{Binding KeepFiles}" Background="{StaticResource KeepBrush}"/>
 
-                        <Label Grid.Row="6" Grid.Column="0" Content="Total After Delete: "/>
-                        <Label Grid.Row="6" Grid.Column="1" Content="{Binding TotalAfterDeleteData, Converter={StaticResource ByteSizeConverter}}"/>
-                        <Label Grid.Row="6" Grid.Column="2" Content="{Binding TotalAfterDeleteFiles}"/>
+                        <Label Grid.Row="6" Grid.Column="0" Content="Ignored: "/>
+                        <Label Grid.Row="6" Grid.Column="1" Content="{Binding IgnoredData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="6" Grid.Column="2" Content="{Binding IgnoredFiles}"/>
+
+                        <Label Grid.Row="7" Grid.Column="0" Content="Error: "/>
+                        <Label Grid.Row="7" Grid.Column="1" Content="{Binding ErrorData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="7" Grid.Column="2" Content="{Binding ErrorFiles}"/>
+
+                        <Label Grid.Row="8" Grid.Column="0" Content="Other: "/>
+                        <Label Grid.Row="8" Grid.Column="1" Content="{Binding OtherData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="8" Grid.Column="2" Content="{Binding OtherFiles}"/>
+
+                        <Label Grid.Row="9" Grid.Column="0" Content="Total After Delete: "/>
+                        <Label Grid.Row="9" Grid.Column="1" Content="{Binding TotalAfterDeleteData, Converter={StaticResource ByteSizeConverter}}"/>
+                        <Label Grid.Row="9" Grid.Column="2" Content="{Binding TotalAfterDeleteFiles}"/>
 
                     </Grid>
 

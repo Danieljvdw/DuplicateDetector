@@ -377,6 +377,18 @@ public partial class MainViewModel : ObservableObject
         return normalizedFolder.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase);
     }
 
+    string GetFolder(FileEntryViewModel f)
+    {
+        return Path.GetDirectoryName(f.Filename)!;
+    }
+
+    string? GetUserFolder(FileEntryViewModel f)
+    {
+        return Folders
+            .FirstOrDefault(x => f.Filename.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase))
+            ?.Path;
+    }
+
     //============================================================
     // 🔍 COMMANDS — SCANNING
     //============================================================
@@ -403,6 +415,19 @@ public partial class MainViewModel : ObservableObject
                 // create file entries in parallel
                 await CreateFileEntriesAsync(allFiles, numberOfSteps);
 
+                // create indexes for quick lookup during comparison
+                var sizeIndex = Files
+                    .GroupBy(f => f.Size)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                var folderIndex = Files
+                    .GroupBy(GetFolder)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                var userFolderIndex = Files
+                    .GroupBy(GetUserFolder)
+                    .ToDictionary(g => g.Key!, g => g.ToList());
+
                 // ignore files smaller than or equal to ignore size
                 if (IgnoreSize > 0)
                 {
@@ -421,18 +446,77 @@ public partial class MainViewModel : ObservableObject
                 int processed = 1;
 
                 // mark unique files as unique if we can
-                if ((CompareSize || CompareContent || CompareHash) && !(CompareDateModified || CompareFilename) && SelectedFolderComparisonMode is FolderComparisonMode.All or FolderComparisonMode.DifferentFolder or FolderComparisonMode.DifferentUserFolder)
+                if (CompareSize || CompareContent || CompareHash)
                 {
-                    var uniqueSizeFiles = Files
-                        .GroupBy(f => f.Size)
-                        .Where(g => g.Count() == 1)
-                        .Select(g => g.First())
-                        .ToList();
-
-                    foreach (var unique in uniqueSizeFiles)
+                    switch (SelectedFolderComparisonMode)
                     {
-                        unique.State = FileEntryViewModel.FileState.unique;
-                        processed++;
+                        case FolderComparisonMode.All:
+                            {
+                                foreach (var group in sizeIndex.Where(g => g.Value.Count == 1))
+                                {
+                                    group.Value[0].State = FileEntryViewModel.FileState.unique;
+                                    processed++;
+                                }
+                            }
+                            break;
+                        case FolderComparisonMode.SameFolder:
+                            {
+                                foreach (var folder in folderIndex.Values)
+                                {
+                                    foreach (var g in folder.GroupBy(f => f.Size).Where(g => g.Count() == 1))
+                                    {
+                                        g.First().State = FileEntryViewModel.FileState.unique;
+                                        processed++;
+                                    }
+                                }
+                            }
+                            break;
+                        case FolderComparisonMode.SameUserFolder:
+                            {
+                                foreach (var folder in userFolderIndex.Values)
+                                {
+                                    foreach (var g in folder.GroupBy(f => f.Size).Where(g => g.Count() == 1))
+                                    {
+                                        g.First().State = FileEntryViewModel.FileState.unique;
+                                        processed++;
+                                    }
+                                }
+                            }
+                            break;
+                        case FolderComparisonMode.DifferentFolder:
+                            {
+                                foreach (var g in sizeIndex.Values)
+                                {
+                                    var folders = g.Select(GetFolder).Distinct().Count();
+
+                                    if (folders == 1)
+                                    {
+                                        foreach (var f in g)
+                                        {
+                                            f.State = FileEntryViewModel.FileState.unique;
+                                            processed++;
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        case FolderComparisonMode.DifferentUserFolder:
+                            {
+                                foreach (var g in sizeIndex.Values)
+                                {
+                                    var users = g.Select(GetUserFolder).Distinct().Count();
+
+                                    if (users == 1)
+                                    {
+                                        foreach (var f in g)
+                                        {
+                                            f.State = FileEntryViewModel.FileState.unique;
+                                            processed++;
+                                        }
+                                    }
+                                }
+                            }
+                            break;
                     }
                 }
 
@@ -451,7 +535,11 @@ public partial class MainViewModel : ObservableObject
                     }
 
                     // get list of files to compare against
-                    List<FileEntryViewModel> compareFiles = Files.Where(f => f != file && f.State != FileEntryViewModel.FileState.unique && f.State != FileEntryViewModel.FileState.ignored).ToList();
+                    var compareFiles = sizeIndex[file.Size]
+                        .Where(f => f != file &&
+                            f.State != FileEntryViewModel.FileState.unique &&
+                            f.State != FileEntryViewModel.FileState.ignored)
+                        .ToList();
 
                     // apply folder comparison mode
                     switch (SelectedFolderComparisonMode)
@@ -462,43 +550,25 @@ public partial class MainViewModel : ObservableObject
                         case FolderComparisonMode.SameFolder:
                             {
                                 // we only want to compare against files in the same folder
-                                compareFiles = compareFiles.Where(f => Path.GetDirectoryName(f.Filename).Equals(Path.GetDirectoryName(file.Filename), StringComparison.OrdinalIgnoreCase)).ToList();
+                                compareFiles = compareFiles.Where(f => GetFolder(f) == GetFolder(file)).ToList();
                             }
                             break;
                         case FolderComparisonMode.DifferentFolder:
                             {
                                 // we only want to compare against files in different folders
-                                compareFiles = compareFiles.Where(f => !Path.GetDirectoryName(f.Filename).Equals(Path.GetDirectoryName(file.Filename), StringComparison.OrdinalIgnoreCase)).ToList();
+                                compareFiles = compareFiles.Where(f => GetFolder(f) != GetFolder(file)).ToList();
                             }
                             break;
                         case FolderComparisonMode.SameUserFolder:
                             {
                                 // we only want to compare against files in the same user's folder
-                                string? userFolder = Folders.FirstOrDefault(f => file.Filename.StartsWith(f.Path, StringComparison.OrdinalIgnoreCase))?.Path;
-                                if (userFolder != null)
-                                {
-                                    compareFiles = compareFiles.Where(f => f.Filename.StartsWith(userFolder, StringComparison.OrdinalIgnoreCase)).ToList();
-                                }
-                                else
-                                {
-                                    // no user folder found, so no files to compare against
-                                    compareFiles = [];
-                                }
+                                compareFiles = compareFiles.Where(f => GetUserFolder(f) == GetUserFolder(file)).ToList();
                             }
                             break;
                         case FolderComparisonMode.DifferentUserFolder:
                             {
                                 // we only want to compare against files in different user's folders
-                                string? userFolder = Folders.FirstOrDefault(f => file.Filename.StartsWith(f.Path, StringComparison.OrdinalIgnoreCase))?.Path;
-                                if (userFolder != null)
-                                {
-                                    compareFiles = compareFiles.Where(f => !f.Filename.StartsWith(userFolder, StringComparison.OrdinalIgnoreCase)).ToList();
-                                }
-                                else
-                                {
-                                    // no user folder found, so no files to compare against
-                                    compareFiles = [];
-                                }
+                                compareFiles = compareFiles.Where(f => GetUserFolder(f) != GetUserFolder(file)).ToList();
                             }
                             break;
                     }
@@ -720,22 +790,6 @@ public partial class MainViewModel : ObservableObject
 
     private async Task<int> CompareFile(FileEntryViewModel file, List<FileEntryViewModel> candidates, int numberOfSteps, int processed)
     {
-        // if size, content of hash is to be compared and compare mode allows, we can immediately mark all files with unique sizes as unique without further comparison
-        if ((CompareSize || CompareContent || CompareHash) && !(CompareDateModified || CompareFilename) && SelectedFolderComparisonMode is FolderComparisonMode.All or FolderComparisonMode.SameFolder or FolderComparisonMode.SameUserFolder)
-        {
-            var uniqueSizeFiles = candidates
-                .GroupBy(f => f.Size)
-                .Where(g => g.Count() == 1)
-                .Select(g => g.First())
-                .ToList();
-
-            foreach (var unique in uniqueSizeFiles)
-            {
-                unique.State = FileEntryViewModel.FileState.unique;
-                processed++;
-            }
-        }
-
         // compare size if requested
         if (CompareSize)
         {
@@ -772,6 +826,10 @@ public partial class MainViewModel : ObservableObject
                 using var fs1 = new FileStream(file.Filename, FileMode.Open, FileAccess.Read, FileShare.Read);
                 using var fs2 = new FileStream(candidate.Filename, FileMode.Open, FileAccess.Read, FileShare.Read);
 
+                // allocate temporary buffers
+                byte[] buffer1 = new byte[8192];
+                byte[] buffer2 = new byte[8192];
+
                 while (true)
                 {
                     // Exit immediately if cancelled
@@ -781,8 +839,6 @@ public partial class MainViewModel : ObservableObject
                     pauseEvent.Wait(cts.Token);
 
                     // read chunks
-                    byte[] buffer1 = new byte[8192];
-                    byte[] buffer2 = new byte[8192];
                     int bytesRead1 = await fs1.ReadAsync(buffer1, 0, buffer1.Length, cts.Token);
                     int bytesRead2 = await fs2.ReadAsync(buffer2, 0, buffer2.Length, cts.Token);
 

@@ -8,12 +8,12 @@ public partial class FolderEntryViewModel : ObservableObject
     public string Path { get; }
 
     // Per-folder file-state filters
-    [ObservableProperty] bool showIdle = true;
+    [ObservableProperty] bool showIdle = false;
     [ObservableProperty] bool showHashing = true;
     [ObservableProperty] bool showHashed = true;
-    [ObservableProperty] bool showKeep = true;
-    [ObservableProperty] bool showDelete = true;
-    [ObservableProperty] bool showUnique = true;
+    [ObservableProperty] bool showKeep = false;
+    [ObservableProperty] bool showDelete = false;
+    [ObservableProperty] bool showUnique = false;
     [ObservableProperty] bool showDeleting = true;
     [ObservableProperty] bool showDeleted = true;
     [ObservableProperty] bool showIgnored = true;

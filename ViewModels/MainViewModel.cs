@@ -577,8 +577,31 @@ public partial class MainViewModel : ObservableObject
                             break;
                     }
 
-                    // compare current file against others
-                    processed = await CompareFile(file, compareFiles, numberOfSteps, processed);
+                    // if there are no files to compare against, mark as unique and continue
+                    bool fileIsUnique = true;
+
+                    if (compareFiles.Any())
+                    {
+                        // compare current file against others
+                        int newProcessedOrNone = await CompareFile(file, compareFiles, numberOfSteps, processed);
+
+                        // if new processed count is returned, update it, otherwise it means file was not unique but we still need to update progress
+                        if (newProcessedOrNone != 0)
+                        {
+                            fileIsUnique = false;
+                        }
+                    }
+
+                    // if file is unique, mark as unique
+                    if (fileIsUnique)
+                    {
+                        // mark as unique
+                        file.State = FileEntryViewModel.FileState.unique;
+
+                        // update progress
+                        processed++;
+                        UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
+                    }
 
                     // refresh file view
                     OnPropertyChanged(nameof(FilesView));
@@ -806,16 +829,34 @@ public partial class MainViewModel : ObservableObject
             candidates = candidates.Where(f => f.Size == file.Size).ToList();
         }
 
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
+        }
+
         // compare date modified if requested
         if (CompareDateModified)
         {
             candidates = candidates.Where(f => f.LastModified == file.LastModified).ToList();
         }
 
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
+        }
+
         // compare filename if requested
         if (CompareFilename)
         {
             candidates = candidates.Where(f => string.Equals(Path.GetFileName(f.Filename), Path.GetFileName(file.Filename), StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
         }
 
         // compare content if requested
@@ -871,6 +912,12 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
             }
+        }
+
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
         }
 
         // compare hash if requested
@@ -939,29 +986,22 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // if there are no candidates left, mark as unique and return
-        if (candidates.Count == 0)
+        // early return check for efficiency
+        if (candidates.Count <= 0)
         {
-            // mark as unique
-            file.State = FileEntryViewModel.FileState.unique;
-
-            // update progress
-            processed++;
-            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
+            return 0;
         }
-        else
+
+        // candidates are left - mark current file as keep, others as delete
+        file.State = FileEntryViewModel.FileState.keep;
+        foreach (var match in candidates)
         {
-            // mark current file as keep, others as delete
-            file.State = FileEntryViewModel.FileState.keep;
-            foreach (var match in candidates)
-            {
-                match.State = FileEntryViewModel.FileState.delete;
-            }
-
-            // update progress
-            processed++;
-            UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
+            match.State = FileEntryViewModel.FileState.delete;
         }
+
+        // update progress
+        processed++;
+        UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
 
         return processed;
     }

@@ -575,10 +575,16 @@ public partial class MainViewModel : ObservableObject
 
                     // compare current file against others
                     processed = await CompareFile(file, compareFiles, numberOfSteps, processed);
+
+                    // refresh file view
+                    OnPropertyChanged(nameof(FilesView));
                 }
 
                 // final progress update
                 UpdateProgressSafely(1, 1);
+
+                // refresh file view
+                OnPropertyChanged(nameof(FilesView));
 
                 // show error summary if any
                 int errorFiles = Files.Where(f => f.State == FileEntryViewModel.FileState.error).Count();

@@ -95,12 +95,17 @@ public partial class DiskViewModel : ObservableObject
 
     public void EnumerateDisks()
     {
-        Disks.Clear();
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.DriveType != DriveType.CDRom))
+        // Clear existing disks and re-enumerate
+        // invoke on UI thread as Disks is a UI-bound collection
+        App.Current.Dispatcher.Invoke(() =>
         {
-            var info = new DiskInfo(drive);
-            Disks.Add(info);
-        }
+            Disks.Clear();
+            foreach (var drive in DriveInfo.GetDrives().Where(d => d.DriveType != DriveType.CDRom))
+            {
+                var info = new DiskInfo(drive);
+                Disks.Add(info);
+            }
+        });
     }
 
     public void Update()

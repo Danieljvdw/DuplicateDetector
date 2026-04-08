@@ -77,6 +77,10 @@ public partial class MainViewModel : ObservableObject
         Properties.UserSettings.Default.Folders = sc;
         Properties.UserSettings.Default.Save();
 
+        // update can execute for folder moving buttons
+        MoveFolderUpCommand.NotifyCanExecuteChanged();
+        MoveFolderDownCommand.NotifyCanExecuteChanged();
+
         // recalculate all headers as a folder has been added/removed
         RecalculateIdleHeader();
         RecalculateHashingHeader();
@@ -207,6 +211,10 @@ public partial class MainViewModel : ObservableObject
     partial void OnCurrentStateChanged(OperationState oldValue, OperationState newValue)
     {
         OnPropertyChanged(nameof(CanRunOperations));
+
+        // update can execute for folder moving buttons
+        MoveFolderUpCommand.NotifyCanExecuteChanged();
+        MoveFolderDownCommand.NotifyCanExecuteChanged();
     }
 
     //============================================================
@@ -393,6 +401,36 @@ public partial class MainViewModel : ObservableObject
         return Folders
             .FirstOrDefault(x => f.Filename.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase))
             ?.Path;
+    }
+
+    private bool CanMoveFolderUp(FolderEntryViewModel item)
+    {
+        return CanRunOperations && item != null && Folders.IndexOf(item) > 0;
+    }
+
+    private bool CanMoveFolderDown(FolderEntryViewModel item)
+    {
+        return CanRunOperations && item != null && Folders.IndexOf(item) < Folders.Count - 1;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMoveFolderUp))]
+    public void MoveFolderUp(FolderEntryViewModel item)
+    {
+        var index = Folders.IndexOf(item);
+        if (index > 0)
+        {
+            Folders.Move(index, index - 1);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMoveFolderDown))]
+    public void MoveFolderDown(FolderEntryViewModel item)
+    {
+        var index = Folders.IndexOf(item);
+        if (index < Folders.Count - 1 && index >= 0)
+        {
+            Folders.Move(index, index + 1);
+        }
     }
 
     //============================================================

@@ -5,7 +5,8 @@ namespace DuplicateDetector.ViewModels;
 public partial class FolderEntryViewModel : ObservableObject
 {
     // Full folder path
-    public string Path { get; }
+    [ObservableProperty]
+    string path;
 
     // Per-folder file-state filters
     [ObservableProperty] bool showIdle = false;

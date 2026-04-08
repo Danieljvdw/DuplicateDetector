@@ -67,7 +67,7 @@ public partial class MainViewModel : ObservableObject
     // List of selected folder paths
     [ObservableProperty] ObservableCollection<FolderEntryViewModel> folders = [];
 
-    private void Folders_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void SaveFolders()
     {
         var sc = new StringCollection();
 
@@ -76,6 +76,12 @@ public partial class MainViewModel : ObservableObject
 
         Properties.UserSettings.Default.Folders = sc;
         Properties.UserSettings.Default.Save();
+    }
+
+    private void Folders_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        // save folders
+        SaveFolders();
 
         // update can execute for folder moving buttons
         MoveFolderUpCommand.NotifyCanExecuteChanged();
@@ -321,55 +327,109 @@ public partial class MainViewModel : ObservableObject
     // 🧩 COMMANDS — FOLDER MANAGEMENT
     //============================================================
 
-    // Opens a folder picker and adds a selected folder to scan list
-    [RelayCommand(CanExecute = nameof(CanRunOperations))]
-    void AddFolder()
+    private bool CheckFolderValid(string filename)
+    {
+        // Check that folder is not inside any existing folder
+        if (Folders.Any(f => IsSubfolder(filename, f.Path)))
+        {
+            MessageBox.Show("The selected folder is already inside an existing folder in the list.",
+                        "Cannot Add Folder",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+            return false; // Do not add because it's inside an existing folder
+        }
+
+        // Check that no existing folder is inside the newly selected folder
+        if (Folders.Any(f => IsSubfolder(f.Path, filename)))
+        {
+            MessageBox.Show("An existing folder in the list is inside the folder you selected.",
+                       "Cannot Add Folder",
+                       MessageBoxButton.OK,
+                       MessageBoxImage.Warning);
+            return false; // Do not add because an existing folder is inside it
+        }
+
+        // avoid adding duplicates
+        if (Folders.Any(f => f.Path.Equals(filename, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("The selected folder is already in the list.",
+                      "Cannot Add Folder",
+                      MessageBoxButton.OK,
+                      MessageBoxImage.Information);
+            return false;
+        }
+
+        return true;
+    }
+
+    // opens a folder picker dialog and returns the selected folder if it's valid, otherwise returns null
+    private string? PickValidFolder(string? initialDirectory = null, string title = "Select a folder")
     {
         // configure dialog
         var dialog = new CommonOpenFileDialog()
         {
             IsFolderPicker = true,
-            Title = "Select a folder"
+            Title = title,
+            InitialDirectory = initialDirectory
         };
 
         // show dialog
         if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
         {
-            // Check that folder is not inside any existing folder
-            if (Folders.Any(f => IsSubfolder(dialog.FileName, f.Path)))
+            if (CheckFolderValid(dialog.FileName))
             {
-                MessageBox.Show("The selected folder is already inside an existing folder in the list.",
-                            "Cannot Add Folder",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning);
-                return; // Do not add because it's inside an existing folder
+                // selected folder is valid, return it
+                return dialog.FileName;
             }
-
-            // Check that no existing folder is inside the newly selected folder
-            if (Folders.Any(f => IsSubfolder(f.Path, dialog.FileName)))
-            {
-                MessageBox.Show("An existing folder in the list is inside the folder you selected.",
-                           "Cannot Add Folder",
-                           MessageBoxButton.OK,
-                           MessageBoxImage.Warning);
-                return; // Do not add because an existing folder is inside it
-            }
-
-            // avoid adding duplicates
-            if (Folders.Any(f => f.Path.Equals(dialog.FileName, StringComparison.OrdinalIgnoreCase)))
-            {
-                MessageBox.Show("The selected folder is already in the list.",
-                          "Cannot Add Folder",
-                          MessageBoxButton.OK,
-                          MessageBoxImage.Information);
-                return;
-            }
-
-            // add folder to list
-            var folder = new FolderEntryViewModel(dialog.FileName);
-            Folders.Add(folder);
-            folder.PropertyChanged += Folder_PropertyChanged;
         }
+
+        return null;
+    }
+
+    // opens a folder picker to change the path of an existing folder entry
+    [RelayCommand(CanExecute = nameof(CanRunOperations))]
+    void EditFolder(FolderEntryViewModel folder)
+    {
+        // open folder picker with current folder as initial directory
+        var newPath = PickValidFolder(folder.Path, "Select a folder");
+
+        // user cancelled or selected invalid folder, do not update
+        if (newPath == null)
+        {
+            return;
+        }
+
+        // update folder path
+        folder.Path = newPath;
+
+        // save updated folder list
+        SaveFolders();
+
+        // refresh file view as folder paths have changed
+        OnPropertyChanged(nameof(FilesView));
+    }
+
+    // opens a folder picker to add a new folder entry to the list
+    [RelayCommand(CanExecute = nameof(CanRunOperations))]
+    void AddFolder()
+    {
+        // open folder picker
+        var newPath = PickValidFolder(title: "Select a folder to add");
+
+        // user cancelled or selected invalid folder, do not add
+        if (newPath == null)
+        {
+            return;
+        }
+
+        // add new folder to list
+        var folder = new FolderEntryViewModel(newPath);
+
+        // save updated folder list
+        Folders.Add(folder);
+
+        // attach property changed handler to update file view when folder properties change
+        folder.PropertyChanged += Folder_PropertyChanged;
     }
 
     [RelayCommand]

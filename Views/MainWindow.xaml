@@ -67,8 +67,12 @@
                                     </GridViewColumn.HeaderContainerStyle>
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding Path}"
-                                                TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock TextTrimming="CharacterEllipsis">
+                                                <Hyperlink Command="{Binding DataContext.EditFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}">
+                                                    <Run Text="{Binding Path}" />
+                                                </Hyperlink>
+                                            </TextBlock>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>

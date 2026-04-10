@@ -1292,13 +1292,21 @@ public partial class MainViewModel : ObservableObject
                     try
                     {
                         pauseEvent.Wait(cts.Token);
-                        file.DeleteToRecycleBin();
-                        Interlocked.Increment(ref deleted);
+
+                        // process file even if deletion fails so we can update progress and not get stuck
                         Interlocked.Increment(ref processed);
+
+                        // delete file
+                        file.DeleteToRecycleBin();
+
+                        // increment deleted count if successful
+                        Interlocked.Increment(ref deleted);
+
                         UpdateProgressSafely(processed, total);
                     }
                     catch
                     {
+                        // ignore individual file errors but count them
                         Interlocked.Increment(ref failed);
                     }
                     finally

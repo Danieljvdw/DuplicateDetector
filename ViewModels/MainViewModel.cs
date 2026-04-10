@@ -289,7 +289,7 @@ public partial class MainViewModel : ObservableObject
     public long TotalData => Files.Sum(f => f.Size); // Total bytes of all files
     public long IdleData => Files.Where(f => f.State == FileEntryViewModel.FileState.idle).Sum(f => f.Size); // Bytes of files not yet processed
     public long UniqueData => Files.Where(f => f.State == FileEntryViewModel.FileState.unique).Sum(f => f.Size); // Total bytes of all unique files
-    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete || f.State == FileEntryViewModel.FileState.deleting || f.State == FileEntryViewModel.FileState.deleted).Sum(f => f.Size); // Bytes that would be freed by deleting duplicates
+    public long DeleteData => Files.Where(f => f.State == FileEntryViewModel.FileState.delete).Sum(f => f.Size); // Bytes that would be freed by deleting duplicates
     public long KeepData => Files.Where(f => f.State == FileEntryViewModel.FileState.keep).Sum(f => f.Size); // Bytes marked to keep (including unique + manually kept files)
     public long IgnoredData => Files.Where(f => f.State == FileEntryViewModel.FileState.ignored).Sum(f => f.Size); // Bytes of files ignored due to being smaller than or equal to ignore size
     public long ErrorData => Files.Where(f => f.State == FileEntryViewModel.FileState.error).Sum(f => f.Size); // Bytes of files that had errors during processing

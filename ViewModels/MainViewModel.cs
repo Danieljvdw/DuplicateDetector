@@ -135,9 +135,13 @@ public partial class MainViewModel : ObservableObject
     // Comparison criteria
     [ObservableProperty] bool compareSize = true;
     [ObservableProperty] bool compareDateModified = false;
-    [ObservableProperty] bool compareFilename = false;
     [ObservableProperty] bool compareContent = false;
     [ObservableProperty] bool compareHash = true;
+    [ObservableProperty] bool compareDisk = false;
+    [ObservableProperty] bool comparePath = false;
+    [ObservableProperty] bool compareFilenameExact = false;
+    [ObservableProperty] bool compareFilenameSimilar = false;
+    [ObservableProperty] bool compareExtension = false;
     [ObservableProperty] int ignoreSize = 0; // 0 means no size ignored, otherwise files smaller than or equal to this size in bytes are ignored
 
     partial void OnCompareSizeChanged(bool oldValue, bool newValue)
@@ -149,12 +153,6 @@ public partial class MainViewModel : ObservableObject
     partial void OnCompareDateModifiedChanged(bool oldValue, bool newValue)
     {
         Properties.UserSettings.Default.CompareDateModified = newValue;
-        Properties.UserSettings.Default.Save();
-    }
-
-    partial void OnCompareFilenameChanged(bool oldValue, bool newValue)
-    {
-        Properties.UserSettings.Default.CompareFilename = newValue;
         Properties.UserSettings.Default.Save();
     }
 
@@ -170,11 +168,69 @@ public partial class MainViewModel : ObservableObject
         Properties.UserSettings.Default.Save();
     }
 
+    partial void OnCompareDiskChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareDisk = newValue;
+        Properties.UserSettings.Default.Save();
+
+        UpdateCanEnableCompares();
+    }
+
+    partial void OnComparePathChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.ComparePath = newValue;
+        Properties.UserSettings.Default.Save();
+
+        UpdateCanEnableCompares();
+    }
+
+    partial void OnCompareFilenameExactChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareFilenameExact = newValue;
+        Properties.UserSettings.Default.Save();
+
+        UpdateCanEnableCompares();
+    }
+
+    partial void OnCompareFilenameSimilarChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareFilenameSimilar = newValue;
+        Properties.UserSettings.Default.Save();
+
+        UpdateCanEnableCompares();
+    }
+
+    partial void OnCompareExtensionChanged(bool oldValue, bool newValue)
+    {
+        Properties.UserSettings.Default.CompareExtension = newValue;
+        Properties.UserSettings.Default.Save();
+
+        UpdateCanEnableCompares();
+    }
+
     partial void OnIgnoreSizeChanged(int oldValue, int newValue)
     {
         Properties.UserSettings.Default.IgnoreSize = newValue;
         Properties.UserSettings.Default.Save();
     }
+
+    // Whether the compare buttons can be enabled based on current state and other selected criteria (to prevent selecting incompatible criteria)
+    public bool CanEnableDisk => CanRunOperations && (CompareDisk || !(ComparePath && (CompareFilenameExact || CompareFilenameSimilar) && CompareExtension));
+    public bool CanEnablePath => CanRunOperations && (ComparePath || !(CompareDisk && (CompareFilenameExact || CompareFilenameSimilar) && CompareExtension));
+    public bool CanEnableFilenameExact => CanRunOperations && (CompareFilenameExact || !((CompareDisk && ComparePath && CompareExtension) || CompareFilenameSimilar));
+    public bool CanEnableFilenameSimilar => CanRunOperations && (CompareFilenameSimilar || !((CompareDisk && ComparePath && CompareExtension) || CompareFilenameExact));
+    public bool CanEnableExtension => CanRunOperations && (CompareExtension || !(CompareDisk && ComparePath && (CompareFilenameExact || CompareFilenameSimilar)));
+
+    // update can execute for compare criteria checkboxes when relevant criteria change
+    private void UpdateCanEnableCompares()
+    {
+        OnPropertyChanged(nameof(CanEnableDisk));
+        OnPropertyChanged(nameof(CanEnablePath));
+        OnPropertyChanged(nameof(CanEnableFilenameExact));
+        OnPropertyChanged(nameof(CanEnableFilenameSimilar));
+        OnPropertyChanged(nameof(CanEnableExtension));
+    }
+
 
     // Optional filter to display only certain file states
     [ObservableProperty] FileEntryViewModel.FileState? fileStateFilter = null;
@@ -317,9 +373,13 @@ public partial class MainViewModel : ObservableObject
         // load comparison settings
         CompareSize = Properties.UserSettings.Default.CompareSize;
         CompareDateModified = Properties.UserSettings.Default.CompareDateModified;
-        CompareFilename = Properties.UserSettings.Default.CompareFilename;
         CompareContent = Properties.UserSettings.Default.CompareContent;
         CompareHash = Properties.UserSettings.Default.CompareHash;
+        CompareDisk = Properties.UserSettings.Default.CompareDisk;
+        ComparePath = Properties.UserSettings.Default.ComparePath;
+        CompareFilenameExact = Properties.UserSettings.Default.CompareFilenameExact;
+        CompareFilenameSimilar = Properties.UserSettings.Default.CompareFilenameSimilar;
+        CompareExtension = Properties.UserSettings.Default.CompareExtension;
         IgnoreSize = Properties.UserSettings.Default.IgnoreSize;
     }
 
@@ -957,10 +1017,69 @@ public partial class MainViewModel : ObservableObject
             return 0;
         }
 
-        // compare filename if requested
-        if (CompareFilename)
+        // compare disk if requested
+        if (CompareDisk)
         {
-            candidates = candidates.Where(f => string.Equals(Path.GetFileName(f.Filename), Path.GetFileName(file.Filename), StringComparison.OrdinalIgnoreCase)).ToList();
+            candidates = candidates.Where(f => Path.GetPathRoot(f.Filename) == Path.GetPathRoot(file.Filename)).ToList();
+        }
+
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
+        }
+
+        // compare path if requested
+        if (ComparePath)
+        {
+            candidates = candidates.Where(f => Path.GetDirectoryName(f.Filename) == Path.GetDirectoryName(file.Filename)).ToList();
+        }
+
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
+        }
+
+        // compare exact filename if requested
+        if (CompareFilenameExact)
+        {
+            string fileNameWithoutExt = Path.GetFileNameWithoutExtension(file.Filename);
+            candidates = candidates.Where(f =>
+            {
+                string candidateNameWithoutExt = Path.GetFileNameWithoutExtension(f.Filename);
+                return string.Equals(candidateNameWithoutExt, fileNameWithoutExt, StringComparison.OrdinalIgnoreCase);
+            }).ToList();
+        }
+
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
+        }
+
+        // compare similar filename, where we just look if the filename we have without extension is "starts with" of the candidates
+        if (CompareFilenameSimilar)
+        {
+            string fileNameWithoutExt = Path.GetFileNameWithoutExtension(file.Filename);
+            candidates = candidates.Where(f =>
+            {
+                string candidateNameWithoutExt = Path.GetFileNameWithoutExtension(f.Filename);
+                return candidateNameWithoutExt.StartsWith(fileNameWithoutExt, StringComparison.OrdinalIgnoreCase);
+            }).ToList();
+        }
+
+        // early return check for efficiency
+        if (candidates.Count <= 0)
+        {
+            return 0;
+        }
+
+        // compare extension if requested
+        if (CompareExtension)
+        {
+            string fileExt = Path.GetExtension(file.Filename);
+            candidates = candidates.Where(f => string.Equals(Path.GetExtension(f.Filename), fileExt, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
         // early return check for efficiency

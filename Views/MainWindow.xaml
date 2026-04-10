@@ -16,6 +16,7 @@
     </Window.DataContext>
 
     <Window.Resources>
+        <conv:BoolToOrangeOrGreyConverter x:Key="BoolToOrangeOrGreyConverter"/>
         <conv:ByteSizeConverter x:Key="ByteSizeConverter"/>
         <conv:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
         <conv:PercentToStarConverter x:Key="PercentToStarConverter"/>
@@ -264,9 +265,21 @@
                 </ComboBox>
                 <CheckBox Content="Compare Size" IsChecked="{Binding CompareSize}" IsEnabled="{Binding CanRunOperations}"/>
                 <CheckBox Content="Compare Date Modified" IsChecked="{Binding CompareDateModified}" IsEnabled="{Binding CanRunOperations}"/>
-                <CheckBox Content="Compare Filename" IsChecked="{Binding CompareFilename}" IsEnabled="{Binding CanRunOperations}"/>
                 <CheckBox Content="Compare Content" IsChecked="{Binding CompareContent}" IsEnabled="{Binding CanRunOperations}"/>
                 <CheckBox Content="Compare Hash" IsChecked="{Binding CompareHash}" IsEnabled="{Binding CanRunOperations}"/>
+                <StackPanel Orientation="Horizontal">
+                    <Label Content="Example: " Padding="0"/>
+                    <Label Content="C:\" Padding="0" Foreground="{Binding CompareDisk, Converter={StaticResource BoolToOrangeOrGreyConverter}}" FontWeight="Bold"/>
+                    <Label Content="Path\" Padding="0" Foreground="{Binding ComparePath, Converter={StaticResource BoolToOrangeOrGreyConverter}}" FontWeight="Bold"/>
+                    <Label Content="Filename" Padding="0" Foreground="{Binding CompareFilenameSimilar, Converter={StaticResource BoolToOrangeOrGreyConverter}}" FontWeight="Bold"/>
+                    <Label Content=" Exact" Padding="0" Foreground="{Binding CompareFilenameExact, Converter={StaticResource BoolToOrangeOrGreyConverter}}" FontWeight="Bold"/>
+                    <Label Content=".Ext" Padding="0" Foreground="{Binding CompareExtension, Converter={StaticResource BoolToOrangeOrGreyConverter}}" FontWeight="Bold"/>
+                </StackPanel>
+                <CheckBox Content="Compare Disk" IsChecked="{Binding CompareDisk}" IsEnabled="{Binding CanEnableDisk}"/>
+                <CheckBox Content="Compare Path" IsChecked="{Binding ComparePath}" IsEnabled="{Binding CanEnablePath}"/>
+                <CheckBox Content="Compare Filename Exact" IsChecked="{Binding CompareFilenameExact}" IsEnabled="{Binding CanEnableFilenameExact}"/>
+                <CheckBox Content="Compare Filename Similar" IsChecked="{Binding CompareFilenameSimilar}" IsEnabled="{Binding CanEnableFilenameSimilar}"/>
+                <CheckBox Content="Compare Extension" IsChecked="{Binding CompareExtension}" IsEnabled="{Binding CanEnableExtension}"/>
                 <StackPanel Orientation="Horizontal">
                     <TextBox Text="{Binding IgnoreSize}" Width="100" IsEnabled="{Binding CanRunOperations}" Margin="0,0,5,0"/>
                     <TextBlock Text="Ignore size (bytes, 0 = no files ignored)"/>

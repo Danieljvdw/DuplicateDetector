@@ -85,18 +85,6 @@ namespace DuplicateDetector.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool CompareFilename {
-            get {
-                return ((bool)(this["CompareFilename"]));
-            }
-            set {
-                this["CompareFilename"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool CompareContent {
             get {
                 return ((bool)(this["CompareContent"]));
@@ -115,6 +103,66 @@ namespace DuplicateDetector.Properties {
             }
             set {
                 this["CompareHash"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool CompareDisk {
+            get {
+                return ((bool)(this["CompareDisk"]));
+            }
+            set {
+                this["CompareDisk"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ComparePath {
+            get {
+                return ((bool)(this["ComparePath"]));
+            }
+            set {
+                this["ComparePath"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool CompareFilenameExact {
+            get {
+                return ((bool)(this["CompareFilenameExact"]));
+            }
+            set {
+                this["CompareFilenameExact"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool CompareFilenameSimilar {
+            get {
+                return ((bool)(this["CompareFilenameSimilar"]));
+            }
+            set {
+                this["CompareFilenameSimilar"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool CompareExtension {
+            get {
+                return ((bool)(this["CompareExtension"]));
+            }
+            set {
+                this["CompareExtension"] = value;
             }
         }
         

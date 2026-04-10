@@ -277,6 +277,9 @@ public partial class MainViewModel : ObservableObject
         // update can execute for folder moving buttons
         MoveFolderUpCommand.NotifyCanExecuteChanged();
         MoveFolderDownCommand.NotifyCanExecuteChanged();
+
+        // update can execute for compare criteria checkboxes
+        UpdateCanEnableCompares();
     }
 
     //============================================================

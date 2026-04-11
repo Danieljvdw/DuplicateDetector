@@ -296,7 +296,7 @@
                     <TextBlock Text="{Binding ProgressValue, StringFormat={}{0:0.00}%}"/>
 
                     <!-- Progress bar -->
-                    <ProgressBar Value="{Binding ProgressValue}" Maximum="100"/>
+                    <ProgressBar Value="{Binding ProgressValue}" Maximum="100" Height="10" IsIndeterminate="{Binding ProgressContinuous}"/>
 
                     <!-- State -->
                     <TextBlock Text="{Binding CurrentState}"/>

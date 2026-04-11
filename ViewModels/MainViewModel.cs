@@ -573,14 +573,14 @@ public partial class MainViewModel : ObservableObject
 
             await Task.Run(async () =>
             {
-                // total files to process
-                int numberOfSteps = 3;
+                // progress bar is indeterminate while we are collecting files because we don't know how many there are until we finish, but we can still update the text to show that we are collecting files
+                ProgressContinuous = true;
 
                 // populate file list
-                var allFiles = CollectAllFiles(numberOfSteps);
+                var allFiles = CollectAllFiles();
 
                 // create file entries in parallel
-                await CreateFileEntriesAsync(allFiles, numberOfSteps);
+                await CreateFileEntriesAsync(allFiles);
 
                 // create indexes for quick lookup during comparison
                 var sizeIndex = Files
@@ -687,6 +687,10 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
 
+                // create progress from this point as actions before this won't have an accurate ETA
+                int nonUniqueFiles = Files.Count - processed;
+                processed = 0;
+
                 foreach (var file in Files)
                 {
                     // exit immediately if cancelled
@@ -750,11 +754,13 @@ public partial class MainViewModel : ObservableObject
                     if (compareFiles.Any())
                     {
                         // compare current file against others
-                        int newProcessedOrNone = await CompareFile(file, compareFiles, numberOfSteps, processed);
+                        int newProcessedOrNone = await CompareFile(file, compareFiles, processed, nonUniqueFiles);
 
                         // if new processed count is returned, update it, otherwise it means file was not unique but we still need to update progress
                         if (newProcessedOrNone != 0)
                         {
+                            processed = newProcessedOrNone;
+
                             fileIsUnique = false;
                         }
                     }
@@ -767,7 +773,7 @@ public partial class MainViewModel : ObservableObject
 
                         // update progress
                         processed++;
-                        UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
+                        UpdateProgressSafely(processed, nonUniqueFiles);
                     }
 
                     // refresh file view
@@ -803,6 +809,9 @@ public partial class MainViewModel : ObservableObject
         }
         finally
         {
+            // progress not indeterminate anymore
+            ProgressContinuous = false;
+
             // finalize operation
             EndOperation();
         }
@@ -821,7 +830,7 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
-    private List<FileInfo> CollectAllFiles(int numberOfSteps)
+    private List<FileInfo> CollectAllFiles()
     {
         // collect all files from selected folders
         var allFiles = new List<FileInfo>();
@@ -856,21 +865,14 @@ public partial class MainViewModel : ObservableObject
                 pauseEvent.Wait(cts.Token);
 
                 allFiles.Add(new FileInfo(file));
-
-                UpdateProgressSafely(allFiles.Count, numberOfFiles, numberOfSteps, 0);
             }
         }
 
         return allFiles;
     }
 
-    private async Task CreateFileEntriesAsync(
-    List<FileInfo> allFiles,
-    int numberOfSteps)
+    private async Task CreateFileEntriesAsync(List<FileInfo> allFiles)
     {
-        // create file entries in parallel
-        int processed = 0;
-
         // sort files - files should be sorted by explorer style compare, but also in order of selected folders (files from first selected folder come first, then second, etc)
         var folderList = Folders.ToList();
 
@@ -926,9 +928,6 @@ public partial class MainViewModel : ObservableObject
                 };
 
                 Files.Add(newFile);
-
-                processed++;
-                UpdateProgressSafely(processed, allFiles.Count, numberOfSteps, 1);
             }
             catch
             {
@@ -994,7 +993,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(FilesView));
     }
 
-    private async Task<int> CompareFile(FileEntryViewModel file, List<FileEntryViewModel> candidates, int numberOfSteps, int processed)
+    private async Task<int> CompareFile(FileEntryViewModel file, List<FileEntryViewModel> candidates, int processed, int nonUniqueFiles)
     {
         // compare size if requested
         if (CompareSize)
@@ -1229,11 +1228,14 @@ public partial class MainViewModel : ObservableObject
         foreach (var match in candidates)
         {
             match.State = FileEntryViewModel.FileState.delete;
+
+            // update processed for each file that is marked
+            processed++;
         }
 
-        // update progress
+        // update progress for keep file
         processed++;
-        UpdateProgressSafely(processed, Files.Count, numberOfSteps, 2);
+        UpdateProgressSafely(processed, nonUniqueFiles);
 
         return processed;
     }
@@ -1540,6 +1542,8 @@ public partial class MainViewModel : ObservableObject
     // 📊 PROGRESS & ETA UPDATES
     //============================================================
 
+    [ObservableProperty] bool progressContinuous = false;
+
     // Safely updates UI progress with throttling to avoid lag
     private void UpdateProgressSafely(int processed, int files)
     {
@@ -1548,6 +1552,8 @@ public partial class MainViewModel : ObservableObject
 
     private void UpdateProgressSafely(int processed, int totalInStep, int numberOfSteps, int currentStep)
     {
+        ProgressContinuous = false;
+
         // Progress fraction within current step
         double stepProgress = (double)processed / totalInStep;
 
